@@ -10,6 +10,7 @@ import seaborn as sns
 import warnings
 warnings.simplefilter(action='ignore', category=FutureWarning)
 
+OUTPUT_FILE ="full_clean_dataset.csv"
 
 @contextmanager
 def timer(title):
@@ -266,9 +267,9 @@ def main(debug = False):
         df = df.join(cc, how='left', on='SK_ID_CURR')
         del cc
         gc.collect()
-        
-    df.to_csv("clean_dataset.csv", index=False)
-    print("")
+    print(f"Writing dataset in {OUTPUT_FILE}.")
+    df.to_csv(OUTPUT_FILE, index=False)
+    print("Done.")
 
 if __name__ == "__main__":
     with timer("Full model run"):
