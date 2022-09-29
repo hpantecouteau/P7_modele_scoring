@@ -234,6 +234,9 @@ def credit_card_balance(num_rows = None, nan_as_category = True):
     gc.collect()
     return cc_agg
 
+def select_features(data: pd.DataFrame, features: List[str]) -> pd.DataFrame:
+    return data[features]
+
 
 @click.command()
 @click.option('--source',
@@ -279,6 +282,26 @@ def main(debug = False, source: str = None):
         df.to_csv(OUTPUT_FILE, index=False)
         print("Done.")
     else:
+        data = pd.read_csv(source)
+        with open("features.txt", "w") as f:
+            for _feature in data.columns.to_list():
+                f.write(f"{_feature}\n")
+        print(data.TARGET.value_counts(normalize=True))
+        features = [
+            "TARGET",
+            "CODE_GENDER",
+            "FLAG_OWN_CAR",
+            "FLAG_OWN_REALTY",
+            "CNT_CHILDREN",
+            "AMT_INCOME_TOTAL",
+            "AMT_CREDIT",
+            "AMT_ANNUITY",
+            "AMT_GOODS_PRICE",
+            "REGION_POPULATION_RELATIVE",
+            "DAYS_BIRTH",
+            "CNT_FAM_MEMBERS"
+        ]
+        data = select_features(data, features)
 
 if __name__ == "__main__":
     with timer("Full model run"):
