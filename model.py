@@ -1,3 +1,4 @@
+from typing import List
 import click
 import numpy as np
 import pandas as pd
@@ -237,6 +238,10 @@ def credit_card_balance(num_rows = None, nan_as_category = True):
 def select_features(data: pd.DataFrame, features: List[str]) -> pd.DataFrame:
     return data[features]
 
+def clean_dataset(data: pd.DataFrame) -> pd.DataFrame:
+    data = data.dropna(how="any", axis="index")
+    return data
+
 
 @click.command()
 @click.option('--source',
@@ -302,6 +307,7 @@ def main(debug = False, source: str = None):
             "CNT_FAM_MEMBERS"
         ]
         data = select_features(data, features)
+        data = clean_dataset(data)
 
 if __name__ == "__main__":
     with timer("Full model run"):
