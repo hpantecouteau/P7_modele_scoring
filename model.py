@@ -6,7 +6,7 @@ import gc
 import time
 from contextlib import contextmanager
 from sklearn.metrics import roc_auc_score, roc_curve
-from sklearn.model_selection import KFold, RepeatedStratifiedKFold, StratifiedKFold, cross_val_score, train_test_split
+from sklearn.model_selection import GridSearchCV, KFold, RepeatedStratifiedKFold, StratifiedKFold, cross_val_score, train_test_split
 from sklearn.linear_model import LogisticRegression
 from imblearn.pipeline import Pipeline
 from imblearn.over_sampling import SMOTE
@@ -14,6 +14,8 @@ from imblearn.under_sampling import RandomUnderSampler
 import matplotlib.pyplot as plt
 import seaborn as sns
 import warnings
+
+from sklearn.tree import DecisionTreeClassifier
 warnings.simplefilter(action='ignore', category=FutureWarning)
 
 OUTPUT_FILE ="full_clean_dataset.csv"
@@ -250,14 +252,22 @@ def modelize(data: pd.DataFrame):
     X = data[[_col for _col in data.columns if _col != "TARGET"]].values
     y = data.TARGET.values
     X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2, stratify=y)
-    model = LogisticRegression()
+    estimator = DecisionTreeClassifier()
     over = SMOTE(sampling_strategy=0.20, k_neighbors=5)
     under = RandomUnderSampler(sampling_strategy=0.50)
-    steps = [('over', over), ('under', under), ('model', model)]
+    steps = [('over', over), ('under', under), ('estimator', estimator)]
     pipeline = Pipeline(steps=steps)
     cv = RepeatedStratifiedKFold(n_splits=5, n_repeats=10)
-    scores = cross_val_score(pipeline, X_train, y_train, scoring='roc_auc', cv=cv)
-    print(f"Mean ROC AUC: {np.mean(scores):.3f}")
+    model = GridSearchCV(pipeline, {"estimator__max_leaf_nodes": [2,4,6,8]}, scoring='roc_auc', cv=cv)
+    model.fit(X_train, y_train)
+    for mean, std, params in zip(
+            model.cv_results_['mean_test_score'],
+            model.cv_results_['std_test_score'],  
+            model.cv_results_['params']
+        ):
+            print(f"CV - ROC AUC = {mean:.3f} (+/-{std/2:.03f}) for {params} \n")
+    y_pred = model.predict(X_test)
+    print(f"Test with best estimator: {roc_auc_score(y_test, y_pred)}")
 
 
 @click.command()
