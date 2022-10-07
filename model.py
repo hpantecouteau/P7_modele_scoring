@@ -1,4 +1,5 @@
-from typing import List
+from pathlib import Path
+from typing import Dict, List
 import click
 import numpy as np
 import pandas as pd
@@ -14,11 +15,21 @@ from imblearn.under_sampling import RandomUnderSampler
 import matplotlib.pyplot as plt
 import seaborn as sns
 import warnings
-
+import json
+from sklearn.preprocessing import StandardScaler
 from sklearn.tree import DecisionTreeClassifier
+from sklearn.svm import LinearSVC, SVC
+from sklearn.dummy import DummyClassifier
+import yaml
 warnings.simplefilter(action='ignore', category=FutureWarning)
 
-OUTPUT_FILE ="full_clean_dataset.csv"
+OUTPUT_FILE: str = "full_raw_dataset.csv"
+MAPPING_MODELS: Dict = {
+        'logistic': LogisticRegression(dual=False, max_iter=200),
+        'svm': LinearSVC(dual = False),
+        'kernel_svm': SVC()
+    }
+PARAMS_TO_TEST: Dict = yaml.load(open(Path('./models_to_test.yml'), 'r'), Loader=yaml.FullLoader)  
 
 @contextmanager
 def timer(title):
@@ -62,7 +73,7 @@ def application_train_test(num_rows = None, nan_as_category = False):
     df['PAYMENT_RATE'] = df['AMT_ANNUITY'] / df['AMT_CREDIT']
     del test_df
     gc.collect()
-    return df
+    return df, cat_cols
 
 
 # Preprocess bureau.csv and bureau_balance.csv
@@ -121,7 +132,7 @@ def bureau_and_balance(num_rows = None, nan_as_category = True):
     bureau_agg = bureau_agg.join(closed_agg, how='left', on='SK_ID_CURR')
     del closed, closed_agg, bureau
     gc.collect()
-    return bureau_agg
+    return bureau_agg, bb_cat+bureau_cat
 
 
 # Preprocess previous_applications.csv
@@ -168,7 +179,7 @@ def previous_applications(num_rows = None, nan_as_category = True):
     prev_agg = prev_agg.join(refused_agg, how='left', on='SK_ID_CURR')
     del refused, refused_agg, approved, approved_agg, prev
     gc.collect()
-    return prev_agg
+    return prev_agg, cat_cols
 
 
 # Preprocess POS_CASH_balance.csv
@@ -190,7 +201,7 @@ def pos_cash(num_rows = None, nan_as_category = True):
     pos_agg['POS_COUNT'] = pos.groupby('SK_ID_CURR').size()
     del pos
     gc.collect()
-    return pos_agg
+    return pos_agg, cat_cols
     
 
 # Preprocess installments_payments.csv
@@ -224,7 +235,7 @@ def installments_payments(num_rows = None, nan_as_category = True):
     ins_agg['INSTAL_COUNT'] = ins.groupby('SK_ID_CURR').size()
     del ins
     gc.collect()
-    return ins_agg
+    return ins_agg, cat_cols
 
 
 # Preprocess credit_card_balance.csv
@@ -239,7 +250,7 @@ def credit_card_balance(num_rows = None, nan_as_category = True):
     cc_agg['CC_COUNT'] = cc.groupby('SK_ID_CURR').size()
     del cc
     gc.collect()
-    return cc_agg
+    return cc_agg, cat_cols
 
 def select_features(data: pd.DataFrame, features: List[str]) -> pd.DataFrame:
     return data[features]
@@ -248,26 +259,52 @@ def clean_dataset(data: pd.DataFrame) -> pd.DataFrame:
     data = data.dropna(how="any", axis="index")
     return data
 
-def modelize(data: pd.DataFrame):
+def compute_params_grid(estimator_str: str) -> Dict[str, List]:
+    if list(PARAMS_TO_TEST[estimator_str].keys())[0] == 0:
+        return None
+    else:
+        params_grid = {}
+        for _param, _dict_param in PARAMS_TO_TEST[estimator_str].items():
+            params_grid[f"estimator__{_param}"] = np.arange(start=_dict_param["min_value"], stop=_dict_param["max_value"], step=_dict_param["step"])
+        return params_grid
+
+
+def modelize(data: pd.DataFrame, estimator_str: str):
     X = data[[_col for _col in data.columns if _col != "TARGET"]].values
     y = data.TARGET.values
-    X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2, stratify=y)
-    estimator = DecisionTreeClassifier()
+    std_scaler = StandardScaler()
+    X_std = std_scaler.fit_transform(X)
+    X_train, X_test, y_train, y_test = train_test_split(X_std, y, test_size=0.2, stratify=y)
     over = SMOTE(sampling_strategy=0.20, k_neighbors=5)
     under = RandomUnderSampler(sampling_strategy=0.50)
-    steps = [('over', over), ('under', under), ('estimator', estimator)]
-    pipeline = Pipeline(steps=steps)
+    dummy_model = DummyClassifier(strategy='most_frequent')
+    pipeline_dummy = Pipeline(steps=[('over', over), ('under', under), ('dummy_model', dummy_model)])
+    pipeline_dummy.fit(X_train, y_train)
+    estimator = MAPPING_MODELS[estimator_str]
+    params_grid = compute_params_grid(estimator_str)    
+    pipeline = Pipeline(steps=[('over', over), ('under', under), ('estimator', estimator)])    
     cv = RepeatedStratifiedKFold(n_splits=5, n_repeats=10)
-    model = GridSearchCV(pipeline, {"estimator__max_leaf_nodes": [2,4,6,8]}, scoring='roc_auc', cv=cv)
-    model.fit(X_train, y_train)
-    for mean, std, params in zip(
-            model.cv_results_['mean_test_score'],
-            model.cv_results_['std_test_score'],  
-            model.cv_results_['params']
-        ):
-            print(f"CV - ROC AUC = {mean:.3f} (+/-{std/2:.03f}) for {params} \n")
-    y_pred = model.predict(X_test)
-    print(f"Test with best estimator: {roc_auc_score(y_test, y_pred)}")
+    if params_grid is not None:
+        model = GridSearchCV(pipeline, params_grid, scoring='roc_auc', cv=cv, verbose=1)
+        print("Fitting...")
+        model.fit(X_train, y_train)
+        for mean, std, params in zip(
+                model.cv_results_['mean_test_score'],
+                model.cv_results_['std_test_score'],  
+                model.cv_results_['params']
+            ):
+                print(f"CV - ROC AUC = {mean:.3f} (+/-{std/2:.03f}) for {params} \n")
+        best_model = model.best_estimator_
+    else:
+        best_model = estimator
+        print("Fitting...")
+        best_model.fit(X_train, y_train)
+    
+    print("Predicting...")
+    dummy_y_pred = pipeline_dummy.predict(X_test)
+    y_pred = best_model.predict(X_test)
+    print(f"Test with dummy classifier: {roc_auc_score(y_test, dummy_y_pred)}")
+    print(f"Test with best params for {estimator_str}: {roc_auc_score(y_test, y_pred)}")
 
 
 @click.command()
@@ -276,69 +313,71 @@ def modelize(data: pd.DataFrame):
     required=False,
     type=str
 )
-def main(debug = False, source: str = None):
+@click.option('--model',
+    help='The model to apply on data source',
+    required=False,
+    type=str
+)
+def main(debug = False, source: str= None, model: str = None):
     if source is None:
         num_rows = 10000 if debug else None
-        df = application_train_test(num_rows)
+        all_cat_cols = []
+        df, cat_cols = application_train_test(num_rows)
+        all_cat_cols.extend(cat_cols)
         with timer("Process bureau and bureau_balance"):
-            bureau = bureau_and_balance(num_rows)
+            bureau, cat_cols = bureau_and_balance(num_rows)
+            all_cat_cols.extend(cat_cols)
             print("Bureau df shape:", bureau.shape)
             df = df.join(bureau, how='left', on='SK_ID_CURR')
             del bureau
             gc.collect()
         with timer("Process previous_applications"):
-            prev = previous_applications(num_rows)
+            prev, cat_cols = previous_applications(num_rows)
+            all_cat_cols.extend(cat_cols)
             print("Previous applications df shape:", prev.shape)
             df = df.join(prev, how='left', on='SK_ID_CURR')
             del prev
             gc.collect()
         with timer("Process POS-CASH balance"):
-            pos = pos_cash(num_rows)
+            pos, cat_cols = pos_cash(num_rows)
+            all_cat_cols.extend(cat_cols)
             print("Pos-cash balance df shape:", pos.shape)
             df = df.join(pos, how='left', on='SK_ID_CURR')
             del pos
             gc.collect()
         with timer("Process installments payments"):
-            ins = installments_payments(num_rows)
+            ins, cat_cols = installments_payments(num_rows)
+            all_cat_cols.extend(cat_cols)
             print("Installments payments df shape:", ins.shape)
             df = df.join(ins, how='left', on='SK_ID_CURR')
             del ins
             gc.collect()
         with timer("Process credit card balance"):
-            cc = credit_card_balance(num_rows)
+            cc, cat_cols = credit_card_balance(num_rows)
+            all_cat_cols.extend(cat_cols)
             print("Credit card balance df shape:", cc.shape)
             df = df.join(cc, how='left', on='SK_ID_CURR')
             del cc
             gc.collect()
+        json.dump(all_cat_cols, open("categ_features.json","w"))
         print(f"Writing dataset in {OUTPUT_FILE}.")
         df.to_csv(OUTPUT_FILE, index=False)
         print("Done.")
     else:
+        print(f"Reading {source}...")
         data = pd.read_csv(source)
+        print(f"Writing in features.txt...")
         with open("features.txt", "w") as f:
             for _feature in data.columns.to_list():
                 f.write(f"{_feature}\n")
         print(data.TARGET.value_counts(normalize=True))
-        features = [
-            "TARGET",
-            "CODE_GENDER",
-            "FLAG_OWN_CAR",
-            "FLAG_OWN_REALTY",
-            "CNT_CHILDREN",
-            "AMT_INCOME_TOTAL",
-            "AMT_CREDIT",
-            "AMT_ANNUITY",
-            "AMT_GOODS_PRICE",
-            "REGION_POPULATION_RELATIVE",
-            "DAYS_BIRTH",
-            "CNT_FAM_MEMBERS"
-        ]
-        data = select_features(data, features)
         data = clean_dataset(data)
         print(data.head())
         print(data.isna().mean())
         print(data.shape)
-        modelize(data)
+        print(f"Modelizing with {model}...")
+        modelize(data, model)
+        print("Done.")
 
 if __name__ == "__main__":
     with timer("Full model run"):
