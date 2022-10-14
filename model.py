@@ -6,6 +6,7 @@ import pandas as pd
 import gc
 import time
 from contextlib import contextmanager
+from sklearn.ensemble import RandomForestClassifier
 from sklearn.metrics import roc_auc_score, roc_curve
 from sklearn.model_selection import GridSearchCV, KFold, RepeatedStratifiedKFold, StratifiedKFold, cross_val_score, train_test_split
 from sklearn.linear_model import LogisticRegression
@@ -20,6 +21,7 @@ from sklearn.preprocessing import StandardScaler
 from sklearn.tree import DecisionTreeClassifier
 from sklearn.svm import LinearSVC, SVC
 from sklearn.dummy import DummyClassifier
+from lightgbm import LGBMClassifier
 import yaml
 warnings.simplefilter(action='ignore', category=FutureWarning)
 
@@ -27,9 +29,10 @@ OUTPUT_FILE: str = "full_raw_dataset.csv"
 MAPPING_MODELS: Dict = {
         'logistic': LogisticRegression(dual=False, max_iter=200),
         'svm': LinearSVC(dual = False),
-        'kernel_svm': SVC()
+        'kernel_svm': SVC(kernel="rbf"),
+        'forest': RandomForestClassifier(criterion='gini'),
+        'lightGBM': LGBMClassifier()
     }
-PARAMS_TO_TEST: Dict = yaml.load(open(Path('./models_to_test.yml'), 'r'), Loader=yaml.FullLoader)  
 
 @contextmanager
 def timer(title):
@@ -259,17 +262,17 @@ def clean_dataset(data: pd.DataFrame) -> pd.DataFrame:
     data = data.dropna(how="any", axis="index")
     return data
 
-def compute_params_grid(estimator_str: str) -> Dict[str, List]:
-    if list(PARAMS_TO_TEST[estimator_str].keys())[0] == 0:
+def compute_params_grid(estimator_str: str, params: Dict) -> Dict[str, List]:
+    if list(params[estimator_str].keys())[0] == 0:
         return None
     else:
         params_grid = {}
-        for _param, _dict_param in PARAMS_TO_TEST[estimator_str].items():
+        for _param, _dict_param in params[estimator_str].items():
             params_grid[f"estimator__{_param}"] = np.arange(start=_dict_param["min_value"], stop=_dict_param["max_value"], step=_dict_param["step"])
         return params_grid
 
 
-def modelize(data: pd.DataFrame, estimator_str: str):
+def modelize(data: pd.DataFrame, estimator_str: str, params: Dict):
     X = data[[_col for _col in data.columns if _col != "TARGET"]].values
     y = data.TARGET.values
     std_scaler = StandardScaler()
@@ -281,11 +284,11 @@ def modelize(data: pd.DataFrame, estimator_str: str):
     pipeline_dummy = Pipeline(steps=[('over', over), ('under', under), ('dummy_model', dummy_model)])
     pipeline_dummy.fit(X_train, y_train)
     estimator = MAPPING_MODELS[estimator_str]
-    params_grid = compute_params_grid(estimator_str)    
+    params_grid = compute_params_grid(estimator_str, params)    
     pipeline = Pipeline(steps=[('over', over), ('under', under), ('estimator', estimator)])    
     cv = RepeatedStratifiedKFold(n_splits=5, n_repeats=10)
     if params_grid is not None:
-        model = GridSearchCV(pipeline, params_grid, scoring='roc_auc', cv=cv, verbose=1)
+        model = GridSearchCV(pipeline, params_grid, scoring='roc_auc', cv=cv, verbose=2)
         print("Fitting...")
         model.fit(X_train, y_train)
         for mean, std, params in zip(
@@ -296,7 +299,7 @@ def modelize(data: pd.DataFrame, estimator_str: str):
                 print(f"CV - ROC AUC = {mean:.3f} (+/-{std/2:.03f}) for {params} \n")
         best_model = model.best_estimator_
     else:
-        best_model = estimator
+        best_model = pipeline
         print("Fitting...")
         best_model.fit(X_train, y_train)
     
@@ -318,7 +321,12 @@ def modelize(data: pd.DataFrame, estimator_str: str):
     required=False,
     type=str
 )
-def main(debug = False, source: str= None, model: str = None):
+@click.option('--grid',
+    help='The file with values of hyperparameters to test',
+    required=False,
+    type=str
+)
+def main(debug = False, source: str= None, model: str = None, grid: str = None):
     if source is None:
         num_rows = 10000 if debug else None
         all_cat_cols = []
@@ -375,8 +383,9 @@ def main(debug = False, source: str= None, model: str = None):
         print(data.head())
         print(data.isna().mean())
         print(data.shape)
+        params_to_test: Dict = yaml.load(open(Path(grid), 'r'), Loader=yaml.FullLoader)  
         print(f"Modelizing with {model}...")
-        modelize(data, model)
+        modelize(data, model, params_to_test)
         print("Done.")
 
 if __name__ == "__main__":
