@@ -8,7 +8,7 @@ import time
 from contextlib import contextmanager
 from sklearn.ensemble import RandomForestClassifier
 from sklearn.metrics import roc_auc_score, roc_curve
-from sklearn.model_selection import GridSearchCV, KFold, RepeatedStratifiedKFold, StratifiedKFold, cross_val_score, train_test_split
+from sklearn.model_selection import GridSearchCV, KFold, RepeatedStratifiedKFold, StratifiedKFold, cross_val_predict, cross_val_score, cross_validate, train_test_split
 from sklearn.linear_model import LogisticRegression
 from imblearn.pipeline import Pipeline
 from imblearn.over_sampling import SMOTE
@@ -29,9 +29,9 @@ OUTPUT_FILE: str = "full_raw_dataset.csv"
 MAPPING_MODELS: Dict = {
         'logistic': LogisticRegression(dual=False, max_iter=200),
         'svm': LinearSVC(dual = False),
-        'kernel_svm': SVC(kernel="rbf"),
-        'forest': RandomForestClassifier(criterion='gini'),
-        'lightGBM': LGBMClassifier()
+        'kernel_svm': SVC(kernel="rbf", probability=True),
+        'forest': RandomForestClassifier(criterion='gini', n_estimators=400, min_samples_leaf=10, max_features=0.33, min_samples_split=100),
+        'lightGBM': LGBMClassifier(objective='binary', n_estimators=400)
     }
 
 @contextmanager
