@@ -272,7 +272,7 @@ def compute_params_grid(estimator_str: str, params: Dict) -> Dict[str, List]:
         return params_grid
 
 
-def modelize(data: pd.DataFrame, estimator_str: str, params: Dict):
+def modelize(data: pd.DataFrame, estimator_str: str, cv_on: bool = False):
     X = data[[_col for _col in data.columns if _col != "TARGET"]].values
     y = data.TARGET.values
     std_scaler = StandardScaler()
@@ -280,34 +280,35 @@ def modelize(data: pd.DataFrame, estimator_str: str, params: Dict):
     X_train, X_test, y_train, y_test = train_test_split(X_std, y, test_size=0.2, stratify=y)
     over = SMOTE(sampling_strategy=0.20, k_neighbors=5)
     under = RandomUnderSampler(sampling_strategy=0.50)
-    dummy_model = DummyClassifier(strategy='most_frequent')
-    pipeline_dummy = Pipeline(steps=[('over', over), ('under', under), ('dummy_model', dummy_model)])
-    pipeline_dummy.fit(X_train, y_train)
     estimator = MAPPING_MODELS[estimator_str]
-    params_grid = compute_params_grid(estimator_str, params)    
     pipeline = Pipeline(steps=[('over', over), ('under', under), ('estimator', estimator)])    
-    cv = RepeatedStratifiedKFold(n_splits=5, n_repeats=10)
-    if params_grid is not None:
-        model = GridSearchCV(pipeline, params_grid, scoring='roc_auc', cv=cv, verbose=2)
-        print("Fitting...")
-        model.fit(X_train, y_train)
-        for mean, std, params in zip(
-                model.cv_results_['mean_test_score'],
-                model.cv_results_['std_test_score'],  
-                model.cv_results_['params']
-            ):
-                print(f"CV - ROC AUC = {mean:.3f} (+/-{std/2:.03f}) for {params} \n")
-        best_model = model.best_estimator_
-    else:
-        best_model = pipeline
-        print("Fitting...")
-        best_model.fit(X_train, y_train)
-    
-    print("Predicting...")
-    dummy_y_pred = pipeline_dummy.predict(X_test)
-    y_pred = best_model.predict(X_test)
-    print(f"Test with dummy classifier: {roc_auc_score(y_test, dummy_y_pred)}")
-    print(f"Test with best params for {estimator_str}: {roc_auc_score(y_test, y_pred)}")
+    if cv_on:
+        dummy_model = DummyClassifier(strategy='most_frequent')
+        pipeline_dummy = Pipeline(steps=[('over', over), ('under', under), ('dummy_model', dummy_model)])
+        pipeline_dummy.fit(X_train, y_train)
+        dummy_y_pred = pipeline_dummy.predict(X_test)
+        print(f"Test with dummy classifier: {roc_auc_score(y_test, dummy_y_pred)}")            
+        print("Cross validation...") 
+        cv = RepeatedStratifiedKFold(n_splits=5, n_repeats=10)
+        scores = cross_val_score(pipeline, X_train, y_train, scoring='roc_auc', cv=cv, verbose=1)
+        return scores                  
+    print("Training...")
+    pipeline.fit(X_train, y_train)
+    print("Predicting...")         
+    y_classes = pipeline.predict(X_test)
+    y_proba_df = pd.DataFrame(pipeline.predict_proba(X_test)).rename(columns={0:'approved', 1:"rejected"})
+    print("Classes : ")
+    print(pd.DataFrame(pipeline.predict(X_test)).value_counts()) 
+    print("Probabilities : ") 
+    print(y_proba_df.head())
+    print(f"ROC AUC Test Score for {estimator_str}: {roc_auc_score(y_test, y_classes)}")
+    return data.assign(proba = y_proba_df.approved)
+
+
+def validate(data: pd.DataFrame, estimator_str: str):
+    scores = modelize(data, estimator_str, cv_on=True)
+    print(scores)
+    print(f"CV - ROC AUC train score = {np.mean(scores):.3f} (std {np.std(scores):.3f})") 
 
 
 @click.command()
@@ -321,12 +322,8 @@ def modelize(data: pd.DataFrame, estimator_str: str, params: Dict):
     required=False,
     type=str
 )
-@click.option('--grid',
-    help='The file with values of hyperparameters to test',
-    required=False,
-    type=str
-)
-def main(debug = False, source: str= None, model: str = None, grid: str = None):
+@click.option("--cv", is_flag=True, show_default=True, default=False, help="Cross Validation ON.")
+def main(cv: bool, debug = False, source: str= None, model: str = None):
     if source is None:
         num_rows = 10000 if debug else None
         all_cat_cols = []
@@ -383,9 +380,8 @@ def main(debug = False, source: str= None, model: str = None, grid: str = None):
         print(data.head())
         print(data.isna().mean())
         print(data.shape)
-        params_to_test: Dict = yaml.load(open(Path(grid), 'r'), Loader=yaml.FullLoader)  
         print(f"Modelizing with {model}...")
-        modelize(data, model, params_to_test)
+        modelize(data, model, cv_on=cv)
         print("Done.")
 
 if __name__ == "__main__":
