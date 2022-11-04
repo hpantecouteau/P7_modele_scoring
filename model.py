@@ -312,6 +312,14 @@ def validate(data: pd.DataFrame, estimator_str: str):
     print(scores)
     print(f"CV - ROC AUC train score = {np.mean(scores):.3f} (std {np.std(scores):.3f})") 
 
+def predict(data: pd.DataFrame, trained_model) -> pd.DataFrame:
+    X = data[[_col for _col in data.columns if _col != "TARGET"]].values
+    y = data.TARGET.values
+    std_scaler = StandardScaler()
+    X_std = std_scaler.fit_transform(X)
+    y_probas_df = pd.DataFrame(trained_model.predict_proba(X_std)).rename(columns={0:'approved', 1:"rejected"})
+    y_probas_df['target'] = y
+    return y_probas_df
 
 @click.command()
 @click.option('--source',
