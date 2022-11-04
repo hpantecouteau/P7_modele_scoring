@@ -1,4 +1,5 @@
 from pathlib import Path
+import pickle
 from typing import Dict, List
 import click
 import numpy as np
@@ -9,7 +10,7 @@ from contextlib import contextmanager
 from sklearn.ensemble import RandomForestClassifier
 from sklearn.metrics import roc_auc_score, roc_curve
 from sklearn.model_selection import GridSearchCV, KFold, RepeatedStratifiedKFold, StratifiedKFold, cross_val_predict, cross_val_score, cross_validate, train_test_split
-from sklearn.linear_model import LogisticRegression
+from sklearn.linear_model import LinearRegression, LogisticRegression
 from imblearn.pipeline import Pipeline
 from imblearn.over_sampling import SMOTE
 from imblearn.under_sampling import RandomUnderSampler
@@ -23,6 +24,7 @@ from sklearn.svm import LinearSVC, SVC
 from sklearn.dummy import DummyClassifier
 from lightgbm import LGBMClassifier
 import yaml
+import shap
 warnings.simplefilter(action='ignore', category=FutureWarning)
 
 OUTPUT_FILE: str = "full_raw_dataset.csv"
@@ -277,7 +279,7 @@ def modelize(data: pd.DataFrame, estimator_str: str, cv_on: bool = False):
     y = data.TARGET.values
     std_scaler = StandardScaler()
     X_std = std_scaler.fit_transform(X)
-    X_train, X_test, y_train, y_test = train_test_split(X_std, y, test_size=0.2, stratify=y)
+    X_train, X_test, y_train, y_test = train_test_split(X_std, y, test_size=0.2, stratify=y, random_state=0)
     over = SMOTE(sampling_strategy=0.20, k_neighbors=5)
     under = RandomUnderSampler(sampling_strategy=0.50)
     estimator = MAPPING_MODELS[estimator_str]
@@ -321,6 +323,21 @@ def predict(data: pd.DataFrame, trained_model) -> pd.DataFrame:
     y_probas_df['target'] = y
     return y_probas_df
 
+def interpet(data: pd.DataFrame, trained_model, n_samples: int):
+    df_sampled = data.sample(n_samples, random_state=0)
+    X = df_sampled[[_col for _col in df_sampled.columns if _col != "TARGET"]].values
+    y = df_sampled.TARGET.values    
+    std_scaler = StandardScaler()
+    X_std = std_scaler.fit_transform(X)    
+    X_train, X_test, y_train, y_test = train_test_split(X_std, y, test_size=0.2, stratify=y, random_state=0)
+    explainer = shap.KernelExplainer(model=trained_model.predict_proba, data=X_train)
+    shap_values = explainer.shap_values(X_train)
+    print(f"SHAP expected value : {explainer.expected_value}")
+    print(f"Model mean value : {trained_model.predict_proba(X_train).mean()}")
+    print(f"Model prediction for test data : {trained_model.predict_proba(X_test)}")
+    plt.figure(figsize=[12,6])
+    shap.summary_plot(shap_values, X_train, feature_names=[_col for _col in df_sampled.columns if _col != "TARGET"], plot_type="bar")
+    plt.savefig(f"interpretability_summary_SHAP.png", bbox_inches='tight', dpi=300)
 @click.command()
 @click.option('--source',
     help='The source for data as CSV file',
@@ -334,6 +351,8 @@ def predict(data: pd.DataFrame, trained_model) -> pd.DataFrame:
 )
 @click.option("--cv", is_flag=True, show_default=True, default=False, help="Cross Validation ON.")
 @click.option("--load", required=False, type=str, help="Load trained model")
+@click.option("--interpetation", required=False, type=str, help="Interpret model output for a specific trained model.")
+def main(cv: bool, debug = False, source: str= None, model: str = None, load: str = None, interpetation: str = None):
     if source is None:
         num_rows = 10000 if debug else None
         all_cat_cols = []
@@ -397,6 +416,10 @@ def predict(data: pd.DataFrame, trained_model) -> pd.DataFrame:
         if model is not None:
             print(f"Modelizing with {model}...")
             modelize(data, model, cv_on=cv)
+        if interpetation is not None:                     
+            print("Interpeting model outputs...")
+            trained_model = pickle.load(open(interpetation, "rb"))
+            interpet(data, trained_model, 100)
         print("Done.")
 
 if __name__ == "__main__":
