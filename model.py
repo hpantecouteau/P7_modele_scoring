@@ -302,6 +302,8 @@ def modelize(data: pd.DataFrame, estimator_str: str, cv_on: bool = False):
     print("Probabilities : ") 
     print(y_proba_df.head())
     print(f"ROC AUC Test Score for {estimator_str}: {roc_auc_score(y_test, y_classes)}")
+    print("Recording model...")
+    pickle.dump(estimator, open("model.pickle", "wb"))
     return data.assign(proba = y_proba_df.approved)
 
 
@@ -323,7 +325,7 @@ def validate(data: pd.DataFrame, estimator_str: str):
     type=str
 )
 @click.option("--cv", is_flag=True, show_default=True, default=False, help="Cross Validation ON.")
-def main(cv: bool, debug = False, source: str= None, model: str = None):
+@click.option("--load", required=False, type=str, help="Load trained model")
     if source is None:
         num_rows = 10000 if debug else None
         all_cat_cols = []
@@ -380,8 +382,13 @@ def main(cv: bool, debug = False, source: str= None, model: str = None):
         print(data.head())
         print(data.isna().mean())
         print(data.shape)
-        print(f"Modelizing with {model}...")
-        modelize(data, model, cv_on=cv)
+        if load is not None:
+            trained_model = pickle.load(open(load, "rb"))
+            df_probas = predict(data, trained_model)
+            df_probas.to_csv("df_probas.csv", index=False)
+        if model is not None:
+            print(f"Modelizing with {model}...")
+            modelize(data, model, cv_on=cv)
         print("Done.")
 
 if __name__ == "__main__":
