@@ -1,2 +1,7 @@
 data/
 full_clean_dataset.csv
+df_probas.csv
+df_train.csv
+records
+shap_values.npy
+shap_values.pickle
