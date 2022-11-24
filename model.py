@@ -35,6 +35,7 @@ MAPPING_MODELS: Dict = {
         'forest': RandomForestClassifier(criterion='gini', n_estimators=400, min_samples_leaf=10, max_features=0.33, min_samples_split=100),
         'lightGBM': LGBMClassifier(objective='binary', n_estimators=400)
     }
+SEUIL_CLASSIF = 0.64
 
 @contextmanager
 def timer(title):
@@ -331,13 +332,12 @@ def interpet(data: pd.DataFrame, trained_model, n_samples: int):
     X_std = std_scaler.fit_transform(X)    
     X_train, X_test, y_train, y_test = train_test_split(X_std, y, test_size=0.2, stratify=y, random_state=0)
     explainer = shap.KernelExplainer(model=trained_model.predict_proba, data=X_train)
-    shap_values = explainer.shap_values(X_train)
+    pickle.dump(explainer, open("explainer.pickle", "wb"))
     print(f"SHAP expected value : {explainer.expected_value}")
     print(f"Model mean value : {trained_model.predict_proba(X_train).mean()}")
     print(f"Model prediction for test data : {trained_model.predict_proba(X_test)}")
-    plt.figure(figsize=[12,6])
-    shap.summary_plot(shap_values, X_train, feature_names=[_col for _col in df_sampled.columns if _col != "TARGET"], plot_type="bar")
-    plt.savefig(f"interpretability_summary_SHAP.png", bbox_inches='tight', dpi=300)
+    pd.DataFrame(data=X_train, columns=[_col for _col in df_sampled.columns if _col != "TARGET"]).to_csv("df_train.csv", index=False)
+    
 @click.command()
 @click.option('--source',
     help='The source for data as CSV file',
