@@ -1,50 +1,34 @@
 # Run this app with `python app.py` and
 # visit http://127.0.0.1:8050/ in your web browser.
 
+from pathlib import Path
+import tempfile
 from dash import Dash, html, dcc, Input, Output, State, dash_table
 import plotly.express as px
 import pandas as pd
 import requests
 import shap
+import matplotlib.pyplot as plt
+import base64
 
 app = Dash(__name__)
 
-# df = pd.DataFrame({
-#     "Fruit": ["Apples", "Oranges", "Bananas", "Apples", "Oranges", "Bananas"],
-#     "Amount": [4, 1, 2, 2, 4, 5],
-#     "City": ["SF", "SF", "SF", "Montreal", "Montreal", "Montreal"]
-# })
-
-# markdown_text = '''
-# ### Dash and Markdown
-
-# Dash apps can be written in Markdown.
-# Dash uses the [CommonMark](http://commonmark.org/)
-# specification of Markdown.
-# Check out their [60 Second Markdown Tutorial](http://commonmark.org/help/)
-# if this is your first introduction to Markdown!
-# '''
-
-# fig = px.bar(df, x="Fruit", y="Amount", color="City", barmode="group")
-
 app.layout = html.Div(children=[
     html.H1(children='Tableau de bord - Crédit', style={'textAlign': 'center'}),
-
     html.Div(children='''
         Ce tableau de bord permet d'afficher les informations relatives à une demande de crédit d'un client.
     '''),
 
-    # html.Div(dcc.Markdown(children=markdown_text)),
-
+    html.H2("Recherche par identifiant client"),
+    html.H3("Informations client et probabilité de remboursement"),
     html.Div(children=[
         html.Label('ID du client :'),
         dcc.Input(id="customer_id", value='0', type='number'),
-        html.Button(id="submit-customer-id", n_clicks=0, children="Envoyer")
-    ]),
-    
-    # dash_table.DataTable(id='display_data_df'),
+        html.Button(id="submit-customer-id", n_clicks=0, children="Chercher")
+    ]),    
     html.Div(id="display_data_df"),
 
+    html.H3("Détails de la modélisation client"),
     html.Img(
         id='shap-graph'
     ),
@@ -71,13 +55,30 @@ def generate_table(dataframe, max_rows=10):
 def display_customer_data(n_clicks, customer_id):
     if n_clicks > 0:
         r = requests.get(f'http://127.0.0.1:5000/api/customers?id={customer_id}').json()
-        df = pd.DataFrame.from_dict(data=r, orient="index").reset_index().rename(columns={0:"Value", "index": "Info"})
-        df = df[["GENDER", "DAYS_BIRTH", "CREDIT_AMT"]]
+        df = pd.DataFrame.from_dict(data=r, orient="index").reset_index().rename(columns={0:"Valeur", "index": "Info"})
+        df = df.loc[df.Info.isin(["CODE_GENDER", "DAYS_BIRTH", "AMT_CREDIT"]),:]
+        r = requests.get(f'http://127.0.0.1:5000/api/customers/proba?id={customer_id}').json()
+        df = df.append({"Info": "Probabilité de remboursement", "Valeur": f"{round(r['P_OK']*100,1)} %"}, ignore_index=True)
         return dash_table.DataTable(data=df.to_dict("records"), style_table={'height': '300px', 'overflowY': 'auto'})
 
      
+# @app.callback(
+#     Output(component_id='display_proba', component_property='children'),
+#     Input(component_id='submit-customer-id', component_property='n_clicks'),
+#     State(component_id='customer_id', component_property='value')
+# )
+# def display_customer_proba(n_clicks, customer_id):
+#     if n_clicks > 0:
+#         r = requests.get(f'http://127.0.0.1:5000/api/customers/proba?id={customer_id}').json()
+#         return f"Probabilité de remboursement : {r['P_OK']}"
+
+
+def get_seuil_classif():
+    r = requests.get(f'http://127.0.0.1:5000/api/model/params').json()
+    return float(r['seuil_classif'])
+
 @app.callback(
-    Output(component_id='display_proba', component_property='children'),
+    Output(component_id="shap-graph", component_property="src"),
     Input(component_id='submit-customer-id', component_property='n_clicks'),
     State(component_id='customer_id', component_property='value')
 )
