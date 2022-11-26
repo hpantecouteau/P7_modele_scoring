@@ -5,3 +5,6 @@ df_train.csv
 records
 shap_values.npy
 shap_values.pickle
+__pycache__/api.cpython-38.pyc
+__pycache__/app.cpython-38.pyc
+__pycache__/model.cpython-38.pyc
