@@ -1,5 +1,6 @@
 import pickle
 from flask import Flask, render_template, jsonify, request
+import numpy as np
 import pandas as pd
 from sklearn.preprocessing import StandardScaler
 import shap
@@ -42,12 +43,23 @@ def get_proba():
     else:
         return "Error: No id field provided. Please specify an id."
     proba = trained_model.predict_proba(X_std[id, :].reshape(1, -1))
-    print(proba)
     response = {
         "P_OK": round(proba[0][0],2),
         "P_NOT_OK": round(proba[0][1],2),
     }
     return jsonify(response)
+
+@app.route('/api/customers/proba/stats/', methods=['GET'])
+def get_stats():
+    proba_ok = trained_model.predict_proba(X_std)[:,0]
+    return jsonify({
+        "min": np.min(proba_ok),
+        "mean": np.mean(proba_ok),
+        "median": np.median(proba_ok),
+        "q1": np.quantile(proba_ok, 0.25),
+        "q3": np.quantile(proba_ok, 0.75),
+        "max": np.max(proba_ok)
+    })
 
 @app.route('/api/model/params', methods=['GET'])
 def get_model_params():
@@ -61,6 +73,7 @@ def get_model_params():
 def get_shap_values():
     if 'id' in request.args:
         id = int(request.args.get('id', ''))
+        df = pd.DataFrame(shap_values[id,:]).to_dict()
     else:
-        return "Error: No id field provided. Please specify an id."
-    return jsonify(pd.DataFrame(shap_values[id,:]).to_dict())
+        df = pd.DataFrame(shap_values).to_dict()
+    return jsonify(df)
