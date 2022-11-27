@@ -2,7 +2,7 @@ import base64
 import tempfile
 from pathlib import Path
 from typing import Tuple
-
+import plotly.graph_objects as go
 import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
@@ -83,18 +83,19 @@ with st.form("get_data", clear_on_submit=False):
 
 st.subheader("Informations client et conseil de décision")
 if "df_customer_data" in st.session_state:
-    var_to_show = st.selectbox("Information à afficher :", options=st.session_state.df_customer_data.index, key="var_to_show")
-    print(st.session_state.customer_id)
-    st.dataframe(st.session_state.df_customer_data.loc[var_to_show,:])
-    # df = df.loc[df.Info.isin(["CODE_GENDER", "DAYS_BIRTH", "AMT_CREDIT"]),:]
-    # df = df.append({"Info": "Probabilité de remboursement", "Valeur": f"{round(st.session_state.r_proba['P_OK']*100,1)} %"}, ignore_index=True)
-    
-    # col_left, col_right = st.columns(2)
-    # with col_left:        
-    #     st.dataframe(df)
-    # with col_right:
-    #     st.metric("Décision conseillée pour l'attribution du prêt", decision_attribution(st.session_state.r_proba['P_OK']))
-    #     st.metric("Probabilité de remboursement", f"{round(st.session_state.r_proba['P_OK']*100,1)} %")
+        fig = go.Figure(go.Indicator(
+            domain = {'x': [0, 1], 'y': [0, 1]},
+            value = proba_to_show,
+            mode = "gauge+number",
+            title = {'text': "Probabilité de remboursement"},
+            gauge = {'axis': {'range': [None, 100]},
+                    'bar': {'color': "gray"},
+                    'steps' : [
+                        {'range': [0, st.session_state.r_params["seuil_classif"]*100], 'color': "coral"},
+                        {'range': [st.session_state.r_params["seuil_classif"]*100, 400], 'color': "lightgreen"}],
+                    'threshold' : {'line': {'color': "red", 'width': 4}, 'thickness': 0.75, 'value': st.session_state.r_params["seuil_classif"]*100}})
+        )
+        st.plotly_chart(fig)
     # st.subheader("Détails de la modélisation client")
     # shap_values = pd.DataFrame(st.session_state.r_shap_customer).values[:,0]
     # params = requests.get(f'http://127.0.0.1:5000/api/model/params').json()
