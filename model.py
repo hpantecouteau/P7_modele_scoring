@@ -275,8 +275,9 @@ def compute_params_grid(estimator_str: str, params: Dict) -> Dict[str, List]:
         return params_grid
 
 
-def modelize(data: pd.DataFrame, estimator_str: str, cv_on: bool = False):
-    X = data[[_col for _col in data.columns if _col != "TARGET"]].values
+def train(data: pd.DataFrame, estimator_str: str, cv_on: bool = False):
+    X = data[[_col for _col in data.columns if _col != "TARGET" and _col != "SK_ID_CURR"]].values
+    print(X.shape)
     y = data.TARGET.values
     std_scaler = StandardScaler()
     X_std = std_scaler.fit_transform(X)
@@ -305,38 +306,50 @@ def modelize(data: pd.DataFrame, estimator_str: str, cv_on: bool = False):
     print("Probabilities : ") 
     print(y_proba_df.head())
     print(f"ROC AUC Test Score for {estimator_str}: {roc_auc_score(y_test, y_classes)}")
-    print("Recording model...")
+    print("Recording model in a pickle...")
     pickle.dump(estimator, open("model.pickle", "wb"))
-    return data.assign(proba = y_proba_df.approved)
 
 
 def validate(data: pd.DataFrame, estimator_str: str):
-    scores = modelize(data, estimator_str, cv_on=True)
+    scores = train(data, estimator_str, cv_on=True)
     print(scores)
     print(f"CV - ROC AUC train score = {np.mean(scores):.3f} (std {np.std(scores):.3f})") 
 
 def predict(data: pd.DataFrame, trained_model) -> pd.DataFrame:
-    X = data[[_col for _col in data.columns if _col != "TARGET"]].values
+    X = data[[_col for _col in data.columns if _col != "TARGET" and _col != "SK_ID_CURR"]].values
     y = data.TARGET.values
     std_scaler = StandardScaler()
     X_std = std_scaler.fit_transform(X)
     y_probas_df = pd.DataFrame(trained_model.predict_proba(X_std)).rename(columns={0:'approved', 1:"rejected"})
     y_probas_df['target'] = y
+    y_probas_df["SK_ID_CURR"] = data.SK_ID_CURR
     return y_probas_df
 
 def interpet(data: pd.DataFrame, trained_model, n_samples: int):
     df_sampled = data.sample(n_samples, random_state=0)
-    X = df_sampled[[_col for _col in df_sampled.columns if _col != "TARGET"]].values
+    print(df_sampled["SK_ID_CURR"])
+    features = [_col for _col in df_sampled.columns if _col != "TARGET" and _col != "SK_ID_CURR"]
+    X = df_sampled[features].values
     y = df_sampled.TARGET.values    
     std_scaler = StandardScaler()
     X_std = std_scaler.fit_transform(X)    
     X_train, X_test, y_train, y_test = train_test_split(X_std, y, test_size=0.2, stratify=y, random_state=0)
+    print(f"X_train shape : {X_train.shape}")
     explainer = shap.KernelExplainer(model=trained_model.predict_proba, data=X_train)
-    pickle.dump(explainer, open("explainer.pickle", "wb"))
     print(f"SHAP expected value : {explainer.expected_value}")
     print(f"Model mean value : {trained_model.predict_proba(X_train).mean()}")
-    print(f"Model prediction for test data : {trained_model.predict_proba(X_test)}")
-    pd.DataFrame(data=X_train, columns=[_col for _col in df_sampled.columns if _col != "TARGET"]).to_csv("df_train.csv", index=False)
+    print(f"Recording SHAP Explainer in a pickle...")
+    pickle.dump(explainer, open("explainer.pickle", "wb"))
+    print("Computing all SHAP values...")
+    shap_values_all_classes = explainer.shap_values(X_train)
+    print(f"shap_values_all_classes shape : {len(shap_values_all_classes)}")
+    shap_values_accepted = shap_values_all_classes[0]
+    print(f"shap_values_accepted shape : {shap_values_accepted.shape}")
+    df_shap = pd.DataFrame(shap_values_accepted, columns=features)
+    df_shap["SK_ID_CURR"] = df_sampled["SK_ID_CURR"]
+    print(f"df_shap shape : {df_shap.shape}")
+    print(f"Recording SHAP values in a CSV...")
+    # df_shap.to_csv("df_shap.csv", index=False)
     
 @click.command()
 @click.option('--source',
@@ -349,12 +362,13 @@ def interpet(data: pd.DataFrame, trained_model, n_samples: int):
     required=False,
     type=str
 )
+@click.option("--debug", is_flag=True, show_default=True, default=False, help="Debug.")
 @click.option("--cv", is_flag=True, show_default=True, default=False, help="Cross Validation ON.")
 @click.option("--load", required=False, type=str, help="Load trained model")
-@click.option("--interpetation", required=False, type=str, help="Interpret model output for a specific trained model.")
-def main(cv: bool, debug = False, source: str= None, model: str = None, load: str = None, interpetation: str = None):
+@click.option("--interpretation", required=False, type=str, help="Interpret model output for a specific trained model.")
+def main(cv: bool, debug = False, source: str= None, model: str = None, load: str = None, interpretation: str = None):
     if source is None:
-        num_rows = 10000 if debug else None
+        num_rows = 1000 if debug else None
         all_cat_cols = []
         df, cat_cols = application_train_test(num_rows)
         all_cat_cols.extend(cat_cols)
@@ -399,26 +413,22 @@ def main(cv: bool, debug = False, source: str= None, model: str = None, load: st
         print("Done.")
     else:
         print(f"Reading {source}...")
-        data = pd.read_csv(source)
-        print(f"Writing in features.txt...")
-        with open("features.txt", "w") as f:
-            for _feature in data.columns.to_list():
-                f.write(f"{_feature}\n")
+        data = pd.read_csv(source)        
         print(data.TARGET.value_counts(normalize=True))
         data = clean_dataset(data)
-        print(data.head())
-        print(data.isna().mean())
+        print(data.head())        
         print(data.shape)
         if load is not None:
             trained_model = pickle.load(open(load, "rb"))
             df_probas = predict(data, trained_model)
+            print("Recording probabilities in a CSV...")
             df_probas.to_csv("df_probas.csv", index=False)
         if model is not None:
             print(f"Modelizing with {model}...")
-            modelize(data, model, cv_on=cv)
-        if interpetation is not None:                     
+            train(data, model, cv_on=cv)
+        if interpretation is not None:                     
             print("Interpeting model outputs...")
-            trained_model = pickle.load(open(interpetation, "rb"))
+            trained_model = pickle.load(open(interpretation, "rb"))
             interpet(data, trained_model, 100)
         print("Done.")
 
