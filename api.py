@@ -47,12 +47,19 @@ def get_proba():
         id = int(request.args.get('id', ''))
     else:
         return "Error: No id field provided. Please specify an id."
-    customer_features = all_customers_features_std.loc[all_customers_features_std.SK_ID_CURR == id,features_names].values
-    proba = trained_model.predict_proba(customer_features)
-    response = {
-        "P_OK": round(proba[0][0],2),
-        "P_NOT_OK": round(proba[0][1],2),
-    }
+    df = all_customers_features_std.loc[all_customers_features_std.SK_ID_CURR == id,features_names]
+    if not df.empty:
+        customer_features = df.values
+        proba = trained_model.predict_proba(customer_features)
+        response = {
+            "P_OK": round(proba[0][0],2),
+            "P_NOT_OK": round(proba[0][1],2),
+        }
+    else:
+        response = {
+            "P_OK": "nan",
+            "P_NOT_OK": "nan",
+        }
     return jsonify(response)
 
 # @app.route('/api/customers/proba/stats/', methods=['GET'])
