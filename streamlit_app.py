@@ -28,16 +28,15 @@ def build_data_df(df_stats: pd.DataFrame):
     r = get_customer_info(st.session_state.customer_id)
     df = pd.DataFrame.from_dict(data=r, orient="index")
     df.columns=["Client"]
-    print(df)
     st.session_state.df_customer_data = (
         pd.merge(df, df_stats, how="left", left_index=True, right_index=True)
         .rename(columns={
             "0":"Client",
             "mean": "Moyenne des clients",
-            "std": "Dispersion autour de la moyenne",
+            "std": "Dispersion",
             "50%": "Médiane des clients",
-            "min": "Minimum des clients",
-            "max": "Maximum des clients",})
+            "min": "Minimum",
+            "max": "Maximum",})
         .drop(columns=["count", "25%", "75%"], index=["SK_ID_CURR", "TARGET"])
     )
 
@@ -46,16 +45,23 @@ def build_data_df(df_stats: pd.DataFrame):
 def get_customer_info(customer_id: int):
     r = requests.get(f'http://127.0.0.1:5000/api/customers?id={customer_id}').json()
     return r
-    # st.session_state.r_proba = requests.get(f'http://127.0.0.1:5000/api/customers/proba?id={customer_id}').json()
+    
+@st.experimental_memo
+def get_customer_proba(customer_id: int):
+    r = requests.get(f'http://127.0.0.1:5000/api/customers/proba?id={customer_id}').json()
+    return r
     # st.session_state.r_shap_customer = requests.get(f'http://127.0.0.1:5000/api/customers/interpretability?id={customer_id}').json()
 
 
 @st.experimental_memo
 def decision_attribution(proba):
-    if proba >= st.session_state.r_params["seuil_classif"]:
-        return "Accordé"
+    if isinstance(proba, float):
+        if proba >= st.session_state.r_params["seuil_classif"]:
+            return "Accordé"
+        else:
+            return "Refusé"
     else:
-        return "Refusé"
+        return np.nan
 
 
 @st.experimental_memo
@@ -83,6 +89,18 @@ with st.form("get_data", clear_on_submit=False):
 
 st.subheader("Informations client et conseil de décision")
 if "df_customer_data" in st.session_state:
+    col_left, col_right = st.columns(2)
+    with col_left:
+        minimal_vars_to_show= [_feature for _feature in st.session_state.df_customer_data.index if "NAME" in _feature]
+        additional_var_to_show = st.multiselect("Information à afficher :", options=st.session_state.df_customer_data.index, key="var_to_show")        
+        st.dataframe(st.session_state.df_customer_data.loc[minimal_vars_to_show+additional_var_to_show,:])
+    with col_right:
+        proba = get_customer_proba(st.session_state.customer_id).get("P_OK", np.nan)
+        if isinstance(proba, float):
+            proba_to_show = round(proba*100,1)
+        else:
+            proba_to_show = np.nan
+        st.metric("Décision conseillée pour l'attribution du prêt", decision_attribution(proba))
         fig = go.Figure(go.Indicator(
             domain = {'x': [0, 1], 'y': [0, 1]},
             value = proba_to_show,
