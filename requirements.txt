@@ -1,0 +1,11 @@
+wheel
+numpy
+pandas
+matplotlib
+seaborn
+scikit-learn
+plotly
+requests
+shap
+imbalanced-learn
+Flask
