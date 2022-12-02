@@ -65,20 +65,33 @@ def decision_attribution(proba):
 
 
 @st.experimental_memo
-def get_customers_data_stats(data_dir: str) -> Tuple[pd.Series, pd.DataFrame]:
+def get_customers_data(data_dir: str) -> Tuple[pd.Series, pd.DataFrame]:
     df_customers_1 = pd.read_csv(f"{data_dir}/application_test.csv")
     df_customers_2 = pd.read_csv(f"{data_dir}/application_train.csv")
     df_customers = pd.concat([df_customers_1, df_customers_2])
+    df_customers = df_customers.drop(columns=[col for col in df_customers.columns if "HOUR" in col])
     customers_ids = df_customers.SK_ID_CURR
     stats = df_customers.describe().T
-    return customers_ids, stats
+    print(df_customers.dtypes)
+    return customers_ids, stats, df_customers
+
+
+@st.experimental_memo
+def get_all_shap_values(data_dir: str) -> Tuple[pd.Series, pd.DataFrame]:
+    return pd.read_csv(f"{data_dir}/df_shap.csv") 
+
+
+@st.experimental_memo
+def get_all_train_data(data_dir: str) -> Tuple[pd.Series, pd.DataFrame]:
+    return pd.read_csv(f"{data_dir}/df_train.csv") 
+
+
 
 with st.spinner("Chargement..."):
-    customers_ids, stats = get_customers_data_stats("./data")
+    customers_ids, stats, df_customers = get_customers_data("./data")
+    df_shap = get_all_shap_values(".")
     st.session_state.r_params = requests.get(f'http://127.0.0.1:5000/api/model/params').json()
-# st.session_state.r_stats = requests.get(f'http://127.0.0.1:5000/api/customers/proba/stats/').json()
-# st.session_state.r_shap = requests.get(f'http://127.0.0.1:5000/api/customers/interpretability/').json()
-
+    df_train = get_all_train_data("./")
 
 st.title("Tableau de bord - Crédit")
 st.write("Ce tableau de bord permet d'afficher les informations relatives à une demande de crédit d'un client.")
