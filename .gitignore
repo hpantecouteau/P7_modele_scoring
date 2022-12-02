@@ -9,3 +9,6 @@ __pycache__/api.cpython-38.pyc
 __pycache__/app.cpython-38.pyc
 __pycache__/model.cpython-38.pyc
 full_raw_dataset.csv
+categ_features.csv
+df_shap.csv
+custom_features.csv
