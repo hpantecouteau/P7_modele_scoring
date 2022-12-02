@@ -42,15 +42,27 @@ def build_data_df(df_stats: pd.DataFrame):
 
 
 @st.experimental_memo
+def build_df_shap_customer(customer_id: int):
+    r = get_customer_shap(customer_id)
+    return pd.DataFrame.from_dict(data=r, orient="index").drop(columns=["SK_ID_CURR"])
+
+
+@st.experimental_memo
 def get_customer_info(customer_id: int):
     r = requests.get(f'http://127.0.0.1:5000/api/customers?id={customer_id}').json()
     return r
     
+
 @st.experimental_memo
 def get_customer_proba(customer_id: int):
     r = requests.get(f'http://127.0.0.1:5000/api/customers/proba?id={customer_id}').json()
     return r
-    # st.session_state.r_shap_customer = requests.get(f'http://127.0.0.1:5000/api/customers/interpretability?id={customer_id}').json()
+
+
+@st.experimental_memo
+def get_customer_shap(customer_id: int):
+    r = requests.get(f'http://127.0.0.1:5000/api/customers/interpretability?id={customer_id}').json()
+    return r
 
 
 @st.experimental_memo
@@ -86,6 +98,13 @@ def get_all_train_data(data_dir: str) -> Tuple[pd.Series, pd.DataFrame]:
     return pd.read_csv(f"{data_dir}/df_train.csv") 
 
 
+    
+
+@st.experimental_memo
+def show_filtered_dataframe(data: pd.DataFrame, additional_vars: List[str]):
+    minimal_vars_to_show= [_feature for _feature in data.index if "NAME" in _feature]
+    return data.loc[minimal_vars_to_show+additional_vars,:]
+
 
 with st.spinner("Chargement..."):
     customers_ids, stats, df_customers = get_customers_data("./data")
@@ -102,6 +121,16 @@ with st.form("get_data", clear_on_submit=False):
 
 st.subheader("Informations client et conseil de décision")
 if "df_customer_data" in st.session_state:
+    additional_var_to_show = st.multiselect("Information à afficher :", options=st.session_state.df_customer_data.index, key="var_to_show")        
+    st.dataframe(show_filtered_dataframe(st.session_state.df_customer_data, additional_var_to_show))
+    numerical_vars = [var for var in df_customers.select_dtypes('number').columns if var != "SK_ID_CURR" and "FLAG" not in var]
+    col_left, col_right = st.columns(2)
+# shap_values = pd.DataFrame(st.session_state.r_shap_customer).values[:,0]
+params = requests.get(f'http://127.0.0.1:5000/api/model/params').json()
+df_shap_customer = build_df_shap_customer(st.session_state.customer_id)
+if not df_shap_customer.empty:
+    explanation = shap.Explanation(values = df_shap_customer.values[0], base_values=params["expected_value"], feature_names=params["features"])    
+    # data = pd.DataFrame.from_dict(st.session_state.r_data, orient="index").T[params["features"]].values    
     col_left, col_right = st.columns(2)
     with col_left:
         minimal_vars_to_show= [_feature for _feature in st.session_state.df_customer_data.index if "NAME" in _feature]
