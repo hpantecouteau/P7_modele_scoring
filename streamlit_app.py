@@ -172,12 +172,11 @@ with st.spinner("Chargement..."):
 
 st.title("Tableau de bord - Crédit")
 st.write("Ce tableau de bord permet d'afficher les informations relatives à une demande de crédit d'un client.")
-st.header("Recherche par identifiant client")
 with st.form("get_data", clear_on_submit=False):
-    customer_id = st.number_input("ID du client :", min_value=customers_ids.min(), max_value=customers_ids.max(), key="customer_id")
+    customer_id = st.number_input("Recherche par identifiant client :", min_value=customers_ids.min(), max_value=customers_ids.max(), key="customer_id")
     clicked = st.form_submit_button("Chercher", on_click=build_data_df, args=(stats,))
 
-st.subheader("Informations client et conseil de décision")
+st.markdown("## Informations client et visualisations")
 if "df_customer_data" in st.session_state:
     additional_var_to_show = st.multiselect("Information à afficher :", options=st.session_state.df_customer_data.index, key="var_to_show")        
     st.dataframe(show_filtered_dataframe(st.session_state.df_customer_data, additional_var_to_show))
@@ -198,6 +197,7 @@ if "df_customer_data" in st.session_state:
         bivariate_plot = draw_bivariate_plot(df_customers, st.session_state.x_var, st.session_state.y_var, st.session_state.customer_id)
         st.pyplot(bivariate_plot)
 
+st.markdown(f"## Résultats et critères prépondérants dans la modélisation du client n°{st.session_state.customer_id}")
 # shap_values = pd.DataFrame(st.session_state.r_shap_customer).values[:,0]
 params = requests.get(f'http://127.0.0.1:5000/api/model/params').json()
 df_shap_customer = build_df_shap_customer(st.session_state.customer_id)
@@ -205,10 +205,13 @@ if not df_shap_customer.empty:
     explanation = shap.Explanation(values = df_shap_customer.values[0], base_values=params["expected_value"], feature_names=params["features"])    
     # data = pd.DataFrame.from_dict(st.session_state.r_data, orient="index").T[params["features"]].values    
     col_left, col_right = st.columns(2)
-    with col_left:
-        minimal_vars_to_show= [_feature for _feature in st.session_state.df_customer_data.index if "NAME" in _feature]
-        additional_var_to_show = st.multiselect("Information à afficher :", options=st.session_state.df_customer_data.index, key="var_to_show")        
-        st.dataframe(st.session_state.df_customer_data.loc[minimal_vars_to_show+additional_var_to_show,:])
+    with col_left:  
+        st.slider("Afficher les x critères plus importants :", min_value=1, max_value=15, value=6, step=1, key="nb_customer_var_to_show")
+        plt.figure()
+        waterfall_plot = shap.plots.waterfall(explanation, max_display=st.session_state.nb_customer_var_to_show, show=True) 
+        plt.title("Importance des variables pour le client demandé")         
+        st.pyplot(waterfall_plot)
+        plt.close()
     with col_right:
         proba = get_customer_proba(st.session_state.customer_id).get("P_OK", np.nan)
         if isinstance(proba, float):
@@ -226,32 +229,16 @@ if not df_shap_customer.empty:
                     'steps' : [
                         {'range': [0, st.session_state.r_params["seuil_classif"]*100], 'color': "coral"},
                         {'range': [st.session_state.r_params["seuil_classif"]*100, 400], 'color': "lightgreen"}],
-                    'threshold' : {'line': {'color': "red", 'width': 4}, 'thickness': 0.75, 'value': st.session_state.r_params["seuil_classif"]*100}})
+                    'threshold' : {'line': {'color': "red", 'width': 4}, 'thickness': 0.75, 'value': proba_to_show}})
         )
         st.plotly_chart(fig)
-    # st.subheader("Détails de la modélisation client")
-    # shap_values = pd.DataFrame(st.session_state.r_shap_customer).values[:,0]
-    # params = requests.get(f'http://127.0.0.1:5000/api/model/params').json()
-    # explanation = shap.Explanation(values = shap_values, base_values=params["expected_value"], feature_names=params["features"])    
-    # data = pd.DataFrame.from_dict(st.session_state.r_data, orient="index").T[params["features"]].values    
-    # col_left, col_right = st.columns(2)
-    # with col_left:  
-    #     waterfall_plot = shap.plots.waterfall(explanation, max_display=6, show=True) 
-    #     plt.title("Importance relative des variables pour le client demandé")         
-    #     st.pyplot(waterfall_plot)
-    #     plt.close()
-    # with col_right:
-    #     fig, ax = plt.subplots(figsize=[4,2])
-    #     ax.bar(x=[str(st.session_state.customer_id)], height=1.0, alpha=0.0)
-    #     ax.axhline(y=st.session_state.r_stats["q3"], linestyle="-.", label="3ème quantile (75 %)", color="forestgreen")
-    #     ax.axhline(y=st.session_state.r_stats["mean"], linestyle="--", label="Moyenne", color="royalblue")
-    #     ax.axhline(y=st.session_state.r_stats["q1"], linestyle="-.", label="1er quantile (25 %)", color="forestgreen")
-    #     ax.axhline(y=st.session_state.r_proba['P_OK'], linestyle="-.", label="Client", color="firebrick")
-    #     ax.legend(bbox_to_anchor=(1.1, 1.05))
-    #     ax.set(ylabel="Probabilité", xlabel="Identifiant client", title="Situation du client dans la base clients")
-    #     st.pyplot(fig)
-    #     plt.close()
-    # force_plot = shap.plots.force(base_value=params["expected_value"], shap_values=shap_values, features=data, feature_names=params["features"], show=False, matplotlib=True)
-    # st.pyplot(force_plot)
-    # plt.close()
-    
+
+
+st.markdown("## Critères prépondérants dans la modélisation générale")
+col_left, col_right = st.columns(2)
+with col_left:
+    st.slider("Afficher les x critères plus importants :", min_value=1, max_value=20, value=10, step=1, key="nb_var_to_show")
+    fig, ax = plt.subplots(1,1)
+    shap.summary_plot(df_shap.drop(columns=["SK_ID_CURR"]).values, df_train.values, feature_names=params["features"], plot_type="bar", max_display=st.session_state.nb_var_to_show)
+    st.pyplot(fig)
+    plt.close()
