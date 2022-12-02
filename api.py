@@ -86,7 +86,9 @@ def get_model_params():
 def get_shap_values():
     if 'id' in request.args:
         id = int(request.args.get('id', ''))
-        response = df_shap.loc[df_shap.SK_ID_CURR == id,:].to_dict()
+        df = df_shap.loc[df_shap.SK_ID_CURR == id,:]
+        print(df.head())
+        response = df.to_dict(orient="index")        
     else:
-        response = df_shap.to_dict()
+        response = df_shap.to_dict(orient="index")
     return jsonify(response)

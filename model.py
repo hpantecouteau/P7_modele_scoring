@@ -276,19 +276,20 @@ def compute_params_grid(estimator_str: str, params: Dict) -> Dict[str, List]:
 
 
 def train(data: pd.DataFrame, estimator_str: str, cv_on: bool = False):
-    X = data[[_col for _col in data.columns if _col != "TARGET" and _col != "SK_ID_CURR"]].values
-    print(X.shape)
-    y = data.TARGET.values
-    std_scaler = StandardScaler()
-    X_std = std_scaler.fit_transform(X)
-    X_train, X_test, y_train, y_test = train_test_split(X_std, y, test_size=0.2, stratify=y, random_state=0)
+    features = [_col for _col in data.columns if _col != "TARGET" and _col != "SK_ID_CURR"]
+    df_X_train, df_X_test, df_y_train, df_y_test = train_test_split(data[features+["SK_ID_CURR"]], data.TARGET, test_size=0.2, stratify=data.TARGET, random_state=0)
+    X_train = df_X_train.drop(columns=["SK_ID_CURR"]).values
+    X_test = df_X_test.drop(columns=["SK_ID_CURR"]).values
+    y_train = df_y_train.drop(columns=["SK_ID_CURR"]).values
+    y_test = df_y_test.drop(columns=["SK_ID_CURR"]).values
+    scaling = StandardScaler()
     over = SMOTE(sampling_strategy=0.20, k_neighbors=5)
     under = RandomUnderSampler(sampling_strategy=0.50)
     estimator = MAPPING_MODELS[estimator_str]
-    pipeline = Pipeline(steps=[('over', over), ('under', under), ('estimator', estimator)])    
+    pipeline = Pipeline(steps=[('scaling', scaling), ('over', over), ('under', under), ('estimator', estimator)])    
     if cv_on:
         dummy_model = DummyClassifier(strategy='most_frequent')
-        pipeline_dummy = Pipeline(steps=[('over', over), ('under', under), ('dummy_model', dummy_model)])
+        pipeline_dummy = Pipeline(steps=[('scaling', scaling), ('over', over), ('under', under), ('dummy_model', dummy_model)])
         pipeline_dummy.fit(X_train, y_train)
         dummy_y_pred = pipeline_dummy.predict(X_test)
         print(f"Test with dummy classifier: {roc_auc_score(y_test, dummy_y_pred)}")            
@@ -300,11 +301,8 @@ def train(data: pd.DataFrame, estimator_str: str, cv_on: bool = False):
     pipeline.fit(X_train, y_train)
     print("Predicting...")         
     y_classes = pipeline.predict(X_test)
-    y_proba_df = pd.DataFrame(pipeline.predict_proba(X_test)).rename(columns={0:'approved', 1:"rejected"})
     print("Classes : ")
     print(pd.DataFrame(pipeline.predict(X_test)).value_counts()) 
-    print("Probabilities : ") 
-    print(y_proba_df.head())
     print(f"ROC AUC Test Score for {estimator_str}: {roc_auc_score(y_test, y_classes)}")
     print("Recording model in a pickle...")
     pickle.dump(estimator, open("model.pickle", "wb"))
@@ -325,31 +323,28 @@ def predict(data: pd.DataFrame, trained_model) -> pd.DataFrame:
     y_probas_df["SK_ID_CURR"] = data.SK_ID_CURR
     return y_probas_df
 
-def interpet(data: pd.DataFrame, trained_model, n_samples: int):
-    df_sampled = data.sample(n_samples, random_state=0)
-    print(df_sampled["SK_ID_CURR"])
-    features = [_col for _col in df_sampled.columns if _col != "TARGET" and _col != "SK_ID_CURR"]
-    X = df_sampled[features].values
-    y = df_sampled.TARGET.values    
-    std_scaler = StandardScaler()
-    X_std = std_scaler.fit_transform(X)    
-    X_train, X_test, y_train, y_test = train_test_split(X_std, y, test_size=0.2, stratify=y, random_state=0)
-    print(f"X_train shape : {X_train.shape}")
-    explainer = shap.KernelExplainer(model=trained_model.predict_proba, data=X_train)
+def interpet(data: pd.DataFrame, trained_model, n_samples: int = None):   
+    features = [_col for _col in data.columns if _col != "TARGET" and _col != "SK_ID_CURR"]
+    df_X_train, df_X_test, df_y_train, df_y_test = train_test_split(data[features+["SK_ID_CURR"]], data.TARGET, test_size=0.2, stratify=data.TARGET, random_state=0)
+    if n_samples is not None:
+        df_X_train = df_X_train.sample(n_samples, random_state=0)
+    print(df_X_train["SK_ID_CURR"])  
+    X_train = df_X_train.drop(columns=["SK_ID_CURR"]).values
+    scaler = StandardScaler()     
+    X_train_std = scaler.fit_transform(X_train)     
+    explainer = shap.KernelExplainer(model=trained_model.predict_proba, data=X_train_std)
     print(f"SHAP expected value : {explainer.expected_value}")
     print(f"Model mean value : {trained_model.predict_proba(X_train).mean()}")
     print(f"Recording SHAP Explainer in a pickle...")
     pickle.dump(explainer, open("explainer.pickle", "wb"))
     print("Computing all SHAP values...")
-    shap_values_all_classes = explainer.shap_values(X_train)
-    print(f"shap_values_all_classes shape : {len(shap_values_all_classes)}")
+    shap_values_all_classes = explainer.shap_values(X_train_std)
     shap_values_accepted = shap_values_all_classes[0]
-    print(f"shap_values_accepted shape : {shap_values_accepted.shape}")
     df_shap = pd.DataFrame(shap_values_accepted, columns=features)
-    df_shap["SK_ID_CURR"] = df_sampled["SK_ID_CURR"]
-    print(f"df_shap shape : {df_shap.shape}")
+    df_shap["SK_ID_CURR"] = df_X_train["SK_ID_CURR"].values
+    print(df_shap["SK_ID_CURR"])
     print(f"Recording SHAP values in a CSV...")
-    # df_shap.to_csv("df_shap.csv", index=False)
+    df_shap.to_csv("df_shap.csv", index=False)
     
 @click.command()
 @click.option('--source',
