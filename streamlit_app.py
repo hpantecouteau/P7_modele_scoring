@@ -1,15 +1,16 @@
 import base64
-import tempfile
 from pathlib import Path
-from typing import Tuple
+from typing import List, Tuple
 import plotly.graph_objects as go
 import matplotlib.pyplot as plt
+import seaborn as sns
 import numpy as np
 import pandas as pd
 import requests
 import shap
 import streamlit as st
 
+sns.set_theme()
 st.set_page_config(
     page_title="Tableau de bord - Crédit",
     layout="wide",
@@ -139,6 +140,22 @@ def draw_bivariate_plot(data: pd.DataFrame, x_var: str, y_var: str, customer_id:
     return fig
 
 
+@st.experimental_memo
+def draw_univariate_plot(data: pd.DataFrame, x_var: str, customer_id: int):
+    assert isinstance(data, pd.DataFrame) and "SK_ID_CURR" in data.columns
+    fig, ax = plt.subplots(nrows=1, ncols=1)
+    ax.hist(
+        data.loc[:, x_var].values,
+        alpha=0.8
+        )      
+    ax.axvline(
+        x=data.loc[data.SK_ID_CURR == customer_id, x_var].values,        
+        color="firebrick",
+        alpha=1.0,
+        linestyle='--'
+    )
+    ax.set(xlabel=x_var, ylabel="Effectif")
+    return fig
     
 
 @st.experimental_memo
@@ -166,6 +183,14 @@ if "df_customer_data" in st.session_state:
     st.dataframe(show_filtered_dataframe(st.session_state.df_customer_data, additional_var_to_show))
     numerical_vars = [var for var in df_customers.select_dtypes('number').columns if var != "SK_ID_CURR" and "FLAG" not in var]
     col_left, col_right = st.columns(2)
+    with col_left:
+        st.markdown("### Situation du client pour une variable donnée :")
+        st.selectbox("Variable à afficher : ", options=numerical_vars, key="x_var_uni", index=0)
+        st.markdown("# ")
+        st.markdown("# ")
+        st.markdown("# ")
+        univariate_plot = draw_univariate_plot(df_customers, st.session_state.x_var_uni, st.session_state.customer_id)
+        st.pyplot(univariate_plot)
     with col_right:
         st.markdown("### Situation du client dans un nuage de points :")
         st.selectbox("Axe des abscisses (en bas) : ", options=numerical_vars, key="x_var", index=0)
