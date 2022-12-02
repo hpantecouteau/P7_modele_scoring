@@ -45,7 +45,7 @@ def build_data_df(df_stats: pd.DataFrame):
 @st.experimental_memo
 def build_df_shap_customer(customer_id: int):
     r = get_customer_shap(customer_id)
-    return pd.DataFrame.from_dict(data=r, orient="index").drop(columns=["SK_ID_CURR"])
+    return pd.DataFrame.from_dict(data=r, orient="index")
 
 
 @st.experimental_memo
@@ -202,8 +202,7 @@ st.markdown(f"## Résultats et critères prépondérants dans la modélisation d
 params = requests.get(f'http://127.0.0.1:5000/api/model/params').json()
 df_shap_customer = build_df_shap_customer(st.session_state.customer_id)
 if not df_shap_customer.empty:
-    explanation = shap.Explanation(values = df_shap_customer.values[0], base_values=params["expected_value"], feature_names=params["features"])    
-    # data = pd.DataFrame.from_dict(st.session_state.r_data, orient="index").T[params["features"]].values    
+    explanation = shap.Explanation(values = df_shap_customer.drop(columns=["SK_ID_CURR"]).values[0], base_values=params["expected_value"], feature_names=params["features"])    
     col_left, col_right = st.columns(2)
     with col_left:  
         st.slider("Afficher les x critères plus importants :", min_value=1, max_value=15, value=6, step=1, key="nb_customer_var_to_show")
