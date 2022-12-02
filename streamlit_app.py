@@ -176,6 +176,41 @@ with st.form("get_data", clear_on_submit=False):
     customer_id = st.number_input("Recherche par identifiant client :", min_value=customers_ids.min(), max_value=customers_ids.max(), key="customer_id")
     clicked = st.form_submit_button("Chercher", on_click=build_data_df, args=(stats,))
 
+
+st.markdown(f"## Résultats et critères prépondérants dans la modélisation du client n°{st.session_state.customer_id}")
+params = requests.get(f'http://127.0.0.1:5000/api/model/params').json()
+df_shap_customer = build_df_shap_customer(st.session_state.customer_id)
+if not df_shap_customer.empty:
+    explanation = shap.Explanation(values = df_shap_customer.drop(columns=["SK_ID_CURR"]).values[0], base_values=params["expected_value"], feature_names=params["features"])    
+    col_left, col_right = st.columns(2)
+    with col_left:
+        proba = get_customer_proba(st.session_state.customer_id).get("P_OK", np.nan)
+        if isinstance(proba, float):
+            proba_to_show = round(proba*100,1)
+        else:
+            proba_to_show = np.nan
+        st.metric("Décision conseillée pour l'attribution du prêt", decision_attribution(proba))
+        fig = go.Figure(go.Indicator(
+            domain = {'x': [0, 1], 'y': [0, 1]},
+            value = proba_to_show,
+            mode = "gauge+number",
+            title = {'text': "Probabilité de remboursement"},
+            gauge = {'axis': {'range': [None, 100]},
+                    'bar': {'color': "gray"},
+                    'steps' : [
+                        {'range': [0, st.session_state.r_params["seuil_classif"]*100], 'color': "coral"},
+                        {'range': [st.session_state.r_params["seuil_classif"]*100, 400], 'color': "lightgreen"}],
+                    'threshold' : {'line': {'color': "red", 'width': 4}, 'thickness': 0.75, 'value': proba_to_show}})
+        )
+        st.plotly_chart(fig)          
+    with col_right:
+        st.slider("Afficher les x critères plus importants :", min_value=1, max_value=15, value=6, step=1, key="nb_customer_var_to_show")
+        plt.figure()
+        waterfall_plot = shap.plots.waterfall(explanation, show=True, max_display=st.session_state.nb_customer_var_to_show) 
+        plt.title("Importance des variables pour le client demandé")         
+        st.pyplot(waterfall_plot)
+        plt.close()
+
 st.markdown("## Informations client et visualisations")
 if "df_customer_data" in st.session_state:
     additional_var_to_show = st.multiselect("Information à afficher :", options=st.session_state.df_customer_data.index, key="var_to_show")        
@@ -196,41 +231,6 @@ if "df_customer_data" in st.session_state:
         st.selectbox("Axe des ordonnées (à gauche) : ", options=numerical_vars, key="y_var", index=1)
         bivariate_plot = draw_bivariate_plot(df_customers, st.session_state.x_var, st.session_state.y_var, st.session_state.customer_id)
         st.pyplot(bivariate_plot)
-
-st.markdown(f"## Résultats et critères prépondérants dans la modélisation du client n°{st.session_state.customer_id}")
-# shap_values = pd.DataFrame(st.session_state.r_shap_customer).values[:,0]
-params = requests.get(f'http://127.0.0.1:5000/api/model/params').json()
-df_shap_customer = build_df_shap_customer(st.session_state.customer_id)
-if not df_shap_customer.empty:
-    explanation = shap.Explanation(values = df_shap_customer.drop(columns=["SK_ID_CURR"]).values[0], base_values=params["expected_value"], feature_names=params["features"])    
-    col_left, col_right = st.columns(2)
-    with col_left:  
-        st.slider("Afficher les x critères plus importants :", min_value=1, max_value=15, value=6, step=1, key="nb_customer_var_to_show")
-        plt.figure()
-        waterfall_plot = shap.plots.waterfall(explanation, max_display=st.session_state.nb_customer_var_to_show, show=True) 
-        plt.title("Importance des variables pour le client demandé")         
-        st.pyplot(waterfall_plot)
-        plt.close()
-    with col_right:
-        proba = get_customer_proba(st.session_state.customer_id).get("P_OK", np.nan)
-        if isinstance(proba, float):
-            proba_to_show = round(proba*100,1)
-        else:
-            proba_to_show = np.nan
-        st.metric("Décision conseillée pour l'attribution du prêt", decision_attribution(proba))
-        fig = go.Figure(go.Indicator(
-            domain = {'x': [0, 1], 'y': [0, 1]},
-            value = proba_to_show,
-            mode = "gauge+number",
-            title = {'text': "Probabilité de remboursement"},
-            gauge = {'axis': {'range': [None, 100]},
-                    'bar': {'color': "gray"},
-                    'steps' : [
-                        {'range': [0, st.session_state.r_params["seuil_classif"]*100], 'color': "coral"},
-                        {'range': [st.session_state.r_params["seuil_classif"]*100, 400], 'color': "lightgreen"}],
-                    'threshold' : {'line': {'color': "red", 'width': 4}, 'thickness': 0.75, 'value': proba_to_show}})
-        )
-        st.plotly_chart(fig)
 
 
 st.markdown("## Critères prépondérants dans la modélisation générale")
