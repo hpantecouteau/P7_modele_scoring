@@ -1,103 +1,94 @@
-# Run this app with `python app.py` and
-# visit http://127.0.0.1:8050/ in your web browser.
-
-from pathlib import Path
-import tempfile
-from dash import Dash, html, dcc, Input, Output, State, dash_table
-import plotly.express as px
+import pickle
+from flask import Flask, render_template, jsonify, request
+import numpy as np
 import pandas as pd
-import requests
+from sklearn.preprocessing import StandardScaler
 import shap
-import matplotlib.pyplot as plt
-import base64
+from model import SEUIL_CLASSIF
 
-app = Dash(__name__)
+app = Flask(__name__)
+df_input = pd.read_csv("full_clean_dataset.csv")
+df_customers_1 = pd.read_csv("./data/application_test.csv")
+df_customers_2 = pd.read_csv("./data/application_train.csv")
+df_customers = pd.concat([df_customers_1, df_customers_2])
+features_names = [_col for _col in df_input.columns if _col != "TARGET" and _col != "SK_ID_CURR"]
+std_scaler = StandardScaler()
+X_std = std_scaler.fit_transform(df_input.loc[:,features_names])
+all_customers_features_std = pd.DataFrame(X_std, columns=features_names)
+all_customers_features_std["SK_ID_CURR"] = df_input["SK_ID_CURR"]
+trained_model = pickle.load(open("model.pickle", "rb"))
+explainer = pickle.load(open("explainer.pickle", "rb"))
+df_shap = pd.read_csv("df_shap.csv")
 
-app.layout = html.Div(children=[
-    html.H1(children='Tableau de bord - Crédit', style={'textAlign': 'center'}),
-    html.Div(children='''
-        Ce tableau de bord permet d'afficher les informations relatives à une demande de crédit d'un client.
-    '''),
-
-    html.H2("Recherche par identifiant client"),
-    html.H3("Informations client et probabilité de remboursement"),
-    html.Div(children=[
-        html.Label('ID du client :'),
-        dcc.Input(id="customer_id", value='0', type='number'),
-        html.Button(id="submit-customer-id", n_clicks=0, children="Chercher")
-    ]),    
-    html.Div(id="display_data_df"),
-
-    html.H3("Détails de la modélisation client"),
-    html.Div(children=[html.Img(id='shap-waterfall-graph')]),
-    html.Div(children=[html.Img(id='shap-force-graph')])
-])
+@app.route('/', methods=['GET'])
+def home():
+    return '''<h1>Distant Reading Customers DB</h1>
+    <p>A prototype API for distant reading of Customers DataBase.</p>'''
 
 
-@app.callback(
-    Output(component_id='display_data_df', component_property='children'),
-    Input(component_id='submit-customer-id', component_property='n_clicks'),
-    State(component_id='customer_id', component_property='value')
-)
-def display_customer_data(n_clicks, customer_id):
-    if n_clicks > 0:
-        r = requests.get(f'http://127.0.0.1:5000/api/customers?id={customer_id}').json()      
-        df = pd.DataFrame.from_dict(data=r, orient="index").reset_index().rename(columns={0:"Valeur", "index": "Info"})
-        df = df.loc[df.Info.isin(["CODE_GENDER", "DAYS_BIRTH", "AMT_CREDIT"]),:]
-        r = requests.get(f'http://127.0.0.1:5000/api/customers/proba?id={customer_id}').json()
-        df = df.append({"Info": "Probabilité de remboursement", "Valeur": f"{round(r['P_OK']*100,1)} %"}, ignore_index=True)
-        return dash_table.DataTable(data=df.to_dict("records"), style_table={'height': '300px', 'overflowY': 'auto'})
+@app.route('/api/customers/all', methods=['GET'])
+def api_all():    
+    dict_all = df_customers.to_dict(orient="index")  
+    return jsonify(dict_all)
 
-     
-def get_seuil_classif():
-    r = requests.get(f'http://127.0.0.1:5000/api/model/params').json()
-    return float(r['seuil_classif'])
+@app.route('/api/customers/', methods=['GET'])
+def show_customer_info():
+    if 'id' in request.args:
+        id = int(request.args['id'])
+        df = df_customers.loc[df_customers.SK_ID_CURR == id]
+        df = df.fillna("nan")     
+    else:
+        return "Error: No id field provided. Please specify an id."
+    return jsonify(df.to_dict())
 
+@app.route('/api/customers/proba/', methods=['GET'])
+def get_proba():
+    if 'id' in request.args:
+        id = int(request.args.get('id', ''))
+    else:
+        return "Error: No id field provided. Please specify an id."
+    df = all_customers_features_std.loc[all_customers_features_std.SK_ID_CURR == id,features_names]
+    if not df.empty:
+        customer_features = df.values
+        proba = trained_model.predict_proba(customer_features)
+        response = {
+            "P_OK": round(proba[0][0],2),
+            "P_NOT_OK": round(proba[0][1],2),
+        }
+    else:
+        response = {
+            "P_OK": "nan",
+            "P_NOT_OK": "nan",
+        }
+    return jsonify(response)
 
-@app.callback(
-        Output(component_id="shap-waterfall-graph", component_property="src"),
-        Input(component_id='submit-customer-id', component_property='n_clicks'),
-        State(component_id='customer_id', component_property='value')
-)        
-def draw_waterfall_plot(n_clicks, customer_id):
-    if n_clicks > 0:
-        r = requests.get(f'http://127.0.0.1:5000/api/customers/interpretability?id={customer_id}').json()
-        shap_values = pd.DataFrame(r).values[:,0]
-        params = requests.get(f'http://127.0.0.1:5000/api/model/params').json()
-        explanation = shap.Explanation(values = shap_values, base_values=params["expected_value"], feature_names=params["features"])
-        with tempfile.TemporaryDirectory() as temp_dir:
-            plt.figure()
-            shap.plots.waterfall(explanation, show=False)
-            plt.savefig(Path(temp_dir, "waterfall_plot_html.png"), bbox_inches="tight")
-            plt.close()
-            return b64_image(Path(temp_dir, "waterfall_plot_html.png")) 
+# @app.route('/api/customers/proba/stats/', methods=['GET'])
+# def get_stats():
+#     proba_ok = trained_model.predict_proba(X_std)[:,0]
+#     return jsonify({
+#         "min": np.min(proba_ok),
+#         "mean": np.mean(proba_ok),
+#         "median": np.median(proba_ok),
+#         "q1": np.quantile(proba_ok, 0.25),
+#         "q3": np.quantile(proba_ok, 0.75),
+#         "max": np.max(proba_ok)
+#     })
 
+@app.route('/api/model/params', methods=['GET'])
+def get_model_params():
+    dict_params = trained_model.get_params(deep=False)
+    dict_params["seuil_classif"] = SEUIL_CLASSIF
+    dict_params["expected_value"] = explainer.expected_value[0]
+    dict_params["features"] = features_names
+    return jsonify(dict_params)
 
-@app.callback(
-        Output(component_id='shap-force-graph', component_property="src"),
-        Input(component_id='submit-customer-id', component_property='n_clicks'),
-        State(component_id='customer_id', component_property='value')
-)   
-def draw_force_plot(n_clicks, customer_id):
-    if n_clicks > 0:
-        r = requests.get(f'http://127.0.0.1:5000/api/customers/interpretability?id={customer_id}').json()
-        shap_values = pd.DataFrame(r).values[:,0]
-        params = requests.get(f'http://127.0.0.1:5000/api/model/params').json()
-        r = requests.get(f'http://127.0.0.1:5000/api/customers?id={customer_id}').json()
-        data = pd.DataFrame.from_dict(r, orient="index").T[params["features"]].values
-        with tempfile.TemporaryDirectory() as temp_dir:
-            plt.figure()
-            shap.plots.force(base_value=params["expected_value"], shap_values=shap_values, features=data, feature_names=params["features"], show=False, matplotlib=True)
-            plt.savefig(Path(temp_dir, "force_plot_html.png"), bbox_inches="tight")
-            plt.close()
-            return b64_image(Path(temp_dir, "force_plot_html.png"))
-
-
-def b64_image(image_filepath: Path) -> str:
-    with open(str(image_filepath), 'rb') as f:
-        image = f.read()
-    return 'data:image/png;base64,' + base64.b64encode(image).decode('utf-8')
-
-
-if __name__ == '__main__':
-    app.run_server(debug=True)
+@app.route('/api/customers/interpretability/', methods=['GET'])
+def get_shap_values():
+    if 'id' in request.args:
+        id = int(request.args.get('id', ''))
+        df = df_shap.loc[df_shap.SK_ID_CURR == id,:]
+        print(df.head())
+        response = df.to_dict(orient="index")        
+    else:
+        response = df_shap.to_dict(orient="index")
+    return jsonify(response)
