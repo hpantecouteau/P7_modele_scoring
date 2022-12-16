@@ -1,11 +1,6 @@
 wheel
-numpy
-pandas
-matplotlib
-seaborn
-scikit-learn
-plotly
-requests
-shap
-imbalanced-learn
-Flask
+pandas==1.4.3
+scikit-learn==1.1.2
+Flask==2.2.2
+pyyaml==6.0
+gsheetsdb
