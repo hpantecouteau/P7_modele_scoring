@@ -1,14 +1,7 @@
 from typing import List, Tuple
 import pandas as pd
 import streamlit as st
-from gsheetsdb import connect
-
-
-@st.cache(ttl=600)
-def run_query(query):
-    rows = conn.execute(query, headers=1)
-    rows = rows.fetchall()
-    return rows
+from shillelagh.backends.apsw.db import connect
 
 
 st.set_page_config(
@@ -18,13 +11,14 @@ st.set_page_config(
 )
 st.set_option('deprecation.showPyplotGlobalUse', False)
 
-
-conn = connect()
+connection = connect(":memory:")
+cursor = connection.cursor()
 sheet_url = st.secrets["public_gsheets_url"]
-X_train = run_query(f'SELECT * FROM "{sheet_url}"')
-df_train = pd.DataFrame(X_train)
+query = f'SELECT * FROM "{sheet_url}"'
+rows = cursor.execute(query)
+df_train = pd.DataFrame(rows)
 
-st.write(X_train[1])
+st.write(rows[1])
 st.dataframe(df_train.head())
 
 
