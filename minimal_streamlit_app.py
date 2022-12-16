@@ -19,11 +19,10 @@ sheet_url = st.secrets["public_gsheets_url"]
 query = f'SELECT * FROM "{sheet_url}"'
 rows = cursor.execute(query)
 st.write(type(rows))
-st.write(rows[1])
-
-df_train = pd.DataFrame(rows)
-st.dataframe(df_train.head())
-
+for row in rows:
+    st.write(row)
+st.write(type(rows.fetchall()))
+st.write(rows.fetchall()[1])
 
 
 
