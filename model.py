@@ -35,7 +35,6 @@ MAPPING_MODELS: Dict = {
         'forest': RandomForestClassifier(criterion='gini', n_estimators=400, min_samples_leaf=10, max_features=0.33, min_samples_split=100),
         'lightGBM': LGBMClassifier(objective='binary', n_estimators=400)
     }
-SEUIL_CLASSIF = 0.64
 
 @contextmanager
 def timer(title):

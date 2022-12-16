@@ -1,10 +1,8 @@
 import pickle
-from flask import Flask, render_template, jsonify, request
-import numpy as np
+import yaml
+from flask import Flask, jsonify, request
 import pandas as pd
 from sklearn.preprocessing import StandardScaler
-import shap
-from model import SEUIL_CLASSIF
 
 app = Flask(__name__)
 df_input = pd.read_csv("full_clean_dataset.csv")
@@ -19,6 +17,7 @@ all_customers_features_std["SK_ID_CURR"] = df_input["SK_ID_CURR"]
 trained_model = pickle.load(open("model.pickle", "rb"))
 explainer = pickle.load(open("explainer.pickle", "rb"))
 df_shap = pd.read_csv("df_shap.csv")
+SEUIL_CLASSIF = yaml.load(open("constants.yml", "r"), Loader=yaml.FullLoader)
 
 @app.route('/', methods=['GET'])
 def home():
@@ -61,18 +60,6 @@ def get_proba():
             "P_NOT_OK": "nan",
         }
     return jsonify(response)
-
-# @app.route('/api/customers/proba/stats/', methods=['GET'])
-# def get_stats():
-#     proba_ok = trained_model.predict_proba(X_std)[:,0]
-#     return jsonify({
-#         "min": np.min(proba_ok),
-#         "mean": np.mean(proba_ok),
-#         "median": np.median(proba_ok),
-#         "q1": np.quantile(proba_ok, 0.25),
-#         "q3": np.quantile(proba_ok, 0.75),
-#         "max": np.max(proba_ok)
-#     })
 
 @app.route('/api/model/params', methods=['GET'])
 def get_model_params():
