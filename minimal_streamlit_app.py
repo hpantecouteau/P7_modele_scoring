@@ -17,12 +17,7 @@ connection = connect(":memory:", adapters=["gsheetsapi"])
 cursor = connection.cursor()
 sheet_url = st.secrets["public_gsheets_url"]
 query = f'SELECT * FROM "{sheet_url}"'
-rows = cursor.execute(query)
-st.write(type(rows))
-for row in rows:
-    st.write(row)
-st.write(type(rows.fetchall()))
-st.write(rows.fetchall()[1])
-
-
+response = cursor.execute(query)
+all_rows: List[Tuple] = response.fetchall()
+st.dataframe(pd.DataFrame(all_rows))
 
