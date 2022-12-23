@@ -83,7 +83,7 @@ def decision_attribution(proba):
 def get_customers_data() -> Tuple[pd.Series, pd.DataFrame, pd.DataFrame]:
     connection = connect(":memory:", adapters=["gsheetsapi"])
     cursor = connection.cursor()
-    sheet_url = st.secrets["public_gsheets_url_app_train"]
+    sheet_url = st.secrets["public_gsheets_url_app_test"]
     query = f'SELECT * FROM "{sheet_url}"'
     response = cursor.execute(query)
     all_rows: List[Tuple] = response.fetchall()
