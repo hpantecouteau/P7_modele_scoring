@@ -1,7 +1,7 @@
-wheel
-pandas==1.4.3
-scikit-learn==1.1.2
-Flask==2.2.2
 pyyaml==6.0
 shillelagh
 shillelagh[gsheetsapi]
+seaborn
+requests
+shap
+plotly
