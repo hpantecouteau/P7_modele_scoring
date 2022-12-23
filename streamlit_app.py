@@ -181,7 +181,7 @@ def show_filtered_dataframe(data: pd.DataFrame, additional_vars: List[str]):
 
 
 with st.spinner("Chargement..."):
-    customers_ids, stats, df_customers = get_customers_data("./data")
+    customers_ids, stats, df_customers = get_customers_data()
     df_shap = get_all_shap_values()
     st.session_state.r_params = requests.get(f'http://127.0.0.1:5000/api/model/params').json()
     df_train = get_all_train_data()
