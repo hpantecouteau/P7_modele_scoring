@@ -9,6 +9,8 @@ import pandas as pd
 import requests
 import shap
 import streamlit as st
+from shillelagh.backends.apsw.db import connect
+
 
 sns.set_theme()
 st.set_page_config(
@@ -90,14 +92,25 @@ def get_customers_data(data_dir: str) -> Tuple[pd.Series, pd.DataFrame]:
 
 
 @st.experimental_memo
-def get_all_shap_values(data_dir: str) -> Tuple[pd.Series, pd.DataFrame]:
-    return pd.read_csv(f"{data_dir}/df_shap.csv") 
-
+def get_all_shap_values() -> Tuple[pd.Series, pd.DataFrame]:
+    connection = connect(":memory:", adapters=["gsheetsapi"])
+    cursor = connection.cursor()
+    sheet_url = st.secrets["public_gsheets_url_shap"]
+    query = f'SELECT * FROM "{sheet_url}"'
+    response = cursor.execute(query)
+    all_rows: List[Tuple] = response.fetchall()
+    return pd.DataFrame(all_rows)
+    
 
 @st.experimental_memo
-def get_all_train_data(data_dir: str) -> Tuple[pd.Series, pd.DataFrame]:
-    return pd.read_csv(f"{data_dir}/df_train.csv") 
-
+def get_all_train_data() -> pd.DataFrame:
+    connection = connect(":memory:", adapters=["gsheetsapi"])
+    cursor = connection.cursor()
+    sheet_url = st.secrets["public_gsheets_url_train"]
+    query = f'SELECT * FROM "{sheet_url}"'
+    response = cursor.execute(query)
+    all_rows: List[Tuple] = response.fetchall()
+    return pd.DataFrame(all_rows)
 
 @st.experimental_memo
 def draw_bivariate_plot(data: pd.DataFrame, x_var: str, y_var: str, customer_id: int):
@@ -166,9 +179,9 @@ def show_filtered_dataframe(data: pd.DataFrame, additional_vars: List[str]):
 
 with st.spinner("Chargement..."):
     customers_ids, stats, df_customers = get_customers_data("./data")
-    df_shap = get_all_shap_values(".")
+    df_shap = get_all_shap_values()
     st.session_state.r_params = requests.get(f'http://127.0.0.1:5000/api/model/params').json()
-    df_train = get_all_train_data("./")
+    df_train = get_all_train_data()
 
 st.title("Tableau de bord - Crédit")
 st.write("Ce tableau de bord permet d'afficher les informations relatives à une demande de crédit d'un client.")
