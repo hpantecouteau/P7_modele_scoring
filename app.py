@@ -5,7 +5,7 @@ import pandas as pd
 from sklearn.preprocessing import StandardScaler
 
 app = Flask(__name__)
-df_input = pd.read_csv("full_clean_dataset.csv")
+df_input = pd.read_csv("sample_clean_dataset.csv")
 df_customers_1 = pd.read_csv("./data/application_test.csv")
 df_customers_2 = pd.read_csv("./data/application_train.csv")
 df_customers = pd.concat([df_customers_1, df_customers_2])
