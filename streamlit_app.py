@@ -80,14 +80,17 @@ def decision_attribution(proba):
 
 
 @st.experimental_memo
-def get_customers_data(data_dir: str) -> Tuple[pd.Series, pd.DataFrame]:
-    df_customers_1 = pd.read_csv(f"{data_dir}/application_test.csv")
-    df_customers_2 = pd.read_csv(f"{data_dir}/application_train.csv")
-    df_customers = pd.concat([df_customers_1, df_customers_2])
-    df_customers = df_customers.drop(columns=[col for col in df_customers.columns if "HOUR" in col])
-    customers_ids = df_customers.SK_ID_CURR
-    stats = df_customers.describe().T
-    print(df_customers.dtypes)
+def get_customers_data() -> Tuple[pd.Series, pd.DataFrame, pd.DataFrame]:
+    connection = connect(":memory:", adapters=["gsheetsapi"])
+    cursor = connection.cursor()
+    sheet_url = st.secrets["public_gsheets_url_app_train"]
+    query = f'SELECT * FROM "{sheet_url}"'
+    response = cursor.execute(query)
+    all_rows: List[Tuple] = response.fetchall()
+    df = pd.DataFrame(all_rows)
+    # df_customers = df_customers.drop(columns=[col for col in df_customers.columns if "HOUR" in col])
+    # customers_ids = df_customers.SK_ID_CURR
+    stats = df.describe().T
     return customers_ids, stats, df_customers
 
 
