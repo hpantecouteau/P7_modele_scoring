@@ -7,4 +7,3 @@ shap==0.41.0
 plotly
 pandas==1.4.3
 numpy==1.23.2
-numba==0.56.3
