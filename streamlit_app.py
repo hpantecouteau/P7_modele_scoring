@@ -85,7 +85,7 @@ def get_customers_data() -> Tuple[pd.Series, pd.DataFrame, pd.DataFrame]:
     cursor = connection.cursor()
     sheet_url = st.secrets["public_gsheets_url_app_test"]
     query = f'SELECT * FROM "{sheet_url}"'
-    response = cursor.execute(query, headers=1)
+    response = cursor.execute(query)
     all_rows: List[Tuple] = response.fetchall()
     df = pd.DataFrame(all_rows)
     # df_customers = df_customers.drop(columns=[col for col in df_customers.columns if "HOUR" in col])
