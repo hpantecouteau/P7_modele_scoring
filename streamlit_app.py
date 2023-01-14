@@ -88,9 +88,10 @@ def get_customers_data() -> Tuple[pd.Series, pd.DataFrame, pd.DataFrame]:
     response = cursor.execute(query)
     all_rows: List[Tuple] = response.fetchall()
     df = pd.DataFrame(all_rows)
+    st.dataframe(df)
     # df_customers = df_customers.drop(columns=[col for col in df_customers.columns if "HOUR" in col])
     # customers_ids = df_customers.SK_ID_CURR
-    customers_ids = df_customers.get("SK_ID_CURR", np.arange(0,df.shape[0],1))
+    customers_ids = df.get("SK_ID_CURR", np.arange(0,df.shape[0],1))
     stats = df.describe().T
     return customers_ids, stats, df_customers
 
