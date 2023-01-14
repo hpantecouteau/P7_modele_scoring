@@ -14,3 +14,5 @@ df_shap.csv
 custom_features.csv
 .streamlit/secrets.toml
 commande azure
+input.csv
+test_probas.csv
