@@ -16,3 +16,5 @@ custom_features.csv
 commande azure
 input.csv
 test_probas.csv
+sampled_df_input.csv
+sampled_df_shap.csv
