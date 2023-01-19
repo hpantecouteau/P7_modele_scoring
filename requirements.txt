@@ -5,3 +5,4 @@ shillelagh[gsheetsapi]
 requests
 plotly
 shap
+matplotlib
