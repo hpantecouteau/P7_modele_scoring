@@ -86,6 +86,8 @@ def get_customers_data() -> Tuple[pd.Series, pd.DataFrame, pd.DataFrame]:
     sheet_url = st.secrets["public_gsheets_url_input"]
     query = f'SELECT * FROM "{sheet_url}"'
     response = cursor.execute(query)
+    st.write(cursor.description)
+    st.write(response)
     all_rows: List[Tuple] = response.fetchall()
     df = pd.DataFrame(all_rows)
     st.dataframe(df)
@@ -191,7 +193,7 @@ with st.spinner("Chargement..."):
 st.title("Tableau de bord - Crédit")
 st.write("Ce tableau de bord permet d'afficher les informations relatives à une demande de crédit d'un client.")
 with st.form("get_data", clear_on_submit=False):
-    customer_id = st.number_input("Recherche par identifiant client :", min_value=customers_ids.min(), max_value=customers_ids.max(), key="customer_id")
+    customer_id = st.selectbox("Recherche par identifiant client :", options=customers_ids, key="customer_id")
     clicked = st.form_submit_button("Chercher", on_click=build_data_df, args=(stats,))
 
 
