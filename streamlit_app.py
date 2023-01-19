@@ -52,19 +52,19 @@ def build_df_shap_customer(customer_id: int):
 
 @st.experimental_memo
 def get_customer_info(customer_id: int):
-    r = requests.get(f'http://127.0.0.1:5000/api/customers?id={customer_id}').json()
+    r = requests.get(f'https://hpanteco.pythonanywhere.com/api/customers?id={customer_id}').json()
     return r
     
 
 @st.experimental_memo
 def get_customer_proba(customer_id: int):
-    r = requests.get(f'http://127.0.0.1:5000/api/customers/proba?id={customer_id}').json()
+    r = requests.get(f'https://hpanteco.pythonanywhere.com/api/customers/proba?id={customer_id}').json()
     return r
 
 
 @st.experimental_memo
 def get_customer_shap(customer_id: int):
-    r = requests.get(f'http://127.0.0.1:5000/api/customers/interpretability?id={customer_id}').json()
+    r = requests.get(f'https://hpanteco.pythonanywhere.com/api/customers/interpretability?id={customer_id}').json()
     return r
 
 
@@ -185,7 +185,7 @@ def show_filtered_dataframe(data: pd.DataFrame, additional_vars: List[str]):
 with st.spinner("Chargement..."):
     customers_ids, stats, df_customers = get_customers_data()
     df_shap = get_all_shap_values()
-    st.session_state.r_params = requests.get(f'http://127.0.0.1:5000/api/model/params').json()
+    st.session_state.r_params = requests.get(f'https://hpanteco.pythonanywhere.com/api/model/params').json()
     # df_train = get_all_train_data()
 
 st.title("Tableau de bord - Crédit")
@@ -196,7 +196,7 @@ with st.form("get_data", clear_on_submit=False):
 
 
 st.markdown(f"## Résultats et critères prépondérants dans la modélisation du client n°{st.session_state.customer_id}")
-params = requests.get(f'http://127.0.0.1:5000/api/model/params').json()
+params = requests.get(f'https://hpanteco.pythonanywhere.com/api/model/params').json()
 df_shap_customer = build_df_shap_customer(st.session_state.customer_id)
 if not df_shap_customer.empty:
     explanation = shap.Explanation(values = df_shap_customer.drop(columns=["SK_ID_CURR"]).values[0], base_values=params["expected_value"], feature_names=params["features"])    
