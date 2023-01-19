@@ -3,7 +3,7 @@ from pathlib import Path
 from typing import List, Tuple
 import plotly.graph_objects as go
 import matplotlib.pyplot as plt
-import seaborn as sns
+# import seaborn as sns
 import numpy as np
 import pandas as pd
 import requests
@@ -12,7 +12,7 @@ import streamlit as st
 from shillelagh.backends.apsw.db import connect
 
 
-sns.set_theme()
+# sns.set_theme()
 st.set_page_config(
     page_title="Tableau de bord - Crédit",
     layout="wide",
