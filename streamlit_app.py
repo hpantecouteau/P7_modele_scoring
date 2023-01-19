@@ -214,7 +214,7 @@ if not df_shap_customer.empty:
     explanation = shap.Explanation(values = df_shap_customer.drop(columns=["SK_ID_CURR"]).values[0], base_values=params["expected_value"], feature_names=params["features"])    
     col_left, col_right = st.columns(2)
     with col_left:
-        proba = get_customer_proba(st.session_state.customer_id).get("P_OK", np.nan)
+        proba = get_customer_proba(st.session_state.customer_id)
         if isinstance(proba, float):
             proba_to_show = round(proba*100,1)
         else:
