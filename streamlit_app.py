@@ -87,9 +87,10 @@ def get_customers_data() -> Tuple[pd.Series, pd.DataFrame, pd.DataFrame]:
     query = f'SELECT * FROM "{sheet_url}"'
     response = cursor.execute(query)
     st.write(cursor.description)
-    st.write(response)
+    st.write(response.description)
+    headers: List[str] = [item[0] for item in response.description]
     all_rows: List[Tuple] = response.fetchall()
-    df = pd.DataFrame(all_rows)
+    df = pd.DataFrame(all_rows, columns=headers)
     st.dataframe(df)
     # df_customers = df_customers.drop(columns=[col for col in df_customers.columns if "HOUR" in col])
     # customers_ids = df_customers.SK_ID_CURR
@@ -105,8 +106,9 @@ def get_all_shap_values() -> Tuple[pd.Series, pd.DataFrame]:
     sheet_url = st.secrets["public_gsheets_url_shap"]
     query = f'SELECT * FROM "{sheet_url}"'
     response = cursor.execute(query)
+    headers: List[str] = [item[0] for item in response.description]
     all_rows: List[Tuple] = response.fetchall()
-    return pd.DataFrame(all_rows)
+    return pd.DataFrame(all_rows, columns=headers)
     
 
 # @st.experimental_memo
