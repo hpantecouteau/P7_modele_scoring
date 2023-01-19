@@ -52,7 +52,7 @@ def build_df_shap_customer(customer_id: int):
 
 @st.experimental_memo
 def get_customer_info(customer_id: int):
-    r = requests.get(f'https://hpanteco.pythonanywhere.com/api/customers?id={customer_id}').json()
+    r = requests.get(f'https://hpanteco.pythonanywhere.com/api/customers?id={customer_id}')
     if r:
         return r.json()
     else:
@@ -61,7 +61,7 @@ def get_customer_info(customer_id: int):
 
 @st.experimental_memo
 def get_customer_proba(customer_id: int):
-    r = requests.get(f'https://hpanteco.pythonanywhere.com/api/customers/proba?id={customer_id}').json()
+    r = requests.get(f'https://hpanteco.pythonanywhere.com/api/customers/proba?id={customer_id}')
     if r:
         return r.json()
     else:
@@ -70,7 +70,7 @@ def get_customer_proba(customer_id: int):
 
 @st.experimental_memo
 def get_customer_shap(customer_id: int):
-    r = requests.get(f'https://hpanteco.pythonanywhere.com/api/customers/interpretability?id={customer_id}').json()
+    r = requests.get(f'https://hpanteco.pythonanywhere.com/api/customers/interpretability?id={customer_id}')
     if r:
         return r.json()
     else:
