@@ -83,7 +83,7 @@ def decision_attribution(proba):
 def get_customers_data() -> Tuple[pd.Series, pd.DataFrame, pd.DataFrame]:
     connection = connect(":memory:", adapters=["gsheetsapi"])
     cursor = connection.cursor()
-    sheet_url = st.secrets["public_gsheets_url_app_test"]
+    sheet_url = st.secrets["public_gsheets_url_input"]
     query = f'SELECT * FROM "{sheet_url}"'
     response = cursor.execute(query)
     all_rows: List[Tuple] = response.fetchall()
@@ -93,7 +93,7 @@ def get_customers_data() -> Tuple[pd.Series, pd.DataFrame, pd.DataFrame]:
     # customers_ids = df_customers.SK_ID_CURR
     customers_ids = df.get("SK_ID_CURR", np.arange(0,df.shape[0],1))
     stats = df.describe().T
-    return customers_ids, stats, df_customers
+    return customers_ids, stats, df
 
 
 @st.experimental_memo
@@ -107,15 +107,15 @@ def get_all_shap_values() -> Tuple[pd.Series, pd.DataFrame]:
     return pd.DataFrame(all_rows)
     
 
-@st.experimental_memo
-def get_all_train_data() -> pd.DataFrame:
-    connection = connect(":memory:", adapters=["gsheetsapi"])
-    cursor = connection.cursor()
-    sheet_url = st.secrets["public_gsheets_url_train"]
-    query = f'SELECT * FROM "{sheet_url}"'
-    response = cursor.execute(query)
-    all_rows: List[Tuple] = response.fetchall()
-    return pd.DataFrame(all_rows)
+# @st.experimental_memo
+# def get_all_train_data() -> pd.DataFrame:
+#     connection = connect(":memory:", adapters=["gsheetsapi"])
+#     cursor = connection.cursor()
+#     sheet_url = st.secrets["public_gsheets_url_train"]
+#     query = f'SELECT * FROM "{sheet_url}"'
+#     response = cursor.execute(query)
+#     all_rows: List[Tuple] = response.fetchall()
+#     return pd.DataFrame(all_rows)
 
 @st.experimental_memo
 def draw_bivariate_plot(data: pd.DataFrame, x_var: str, y_var: str, customer_id: int):
@@ -186,7 +186,7 @@ with st.spinner("Chargement..."):
     customers_ids, stats, df_customers = get_customers_data()
     df_shap = get_all_shap_values()
     st.session_state.r_params = requests.get(f'http://127.0.0.1:5000/api/model/params').json()
-    df_train = get_all_train_data()
+    # df_train = get_all_train_data()
 
 st.title("Tableau de bord - Crédit")
 st.write("Ce tableau de bord permet d'afficher les informations relatives à une demande de crédit d'un client.")
@@ -255,7 +255,7 @@ st.markdown("## Critères prépondérants dans la modélisation générale")
 col_left, col_right = st.columns(2)
 with col_left:
     st.slider("Afficher les x critères plus importants :", min_value=1, max_value=20, value=10, step=1, key="nb_var_to_show")
-    fig, ax = plt.subplots(1,1)
-    shap.summary_plot(df_shap.drop(columns=["SK_ID_CURR"]).values, df_train.values, feature_names=params["features"], plot_type="bar", max_display=st.session_state.nb_var_to_show)
-    st.pyplot(fig)
-    plt.close()
+    st.image("https://drive.google.com/file/d/1kTTe-7f4Y8mxat8YPZS8lhLkXiEAPXsf/view?usp=sharing")
+    # fig, ax = plt.subplots(1,1)
+    # shap.summary_plot(df_shap.drop(columns=["SK_ID_CURR"]).values, df_train.values, feature_names=params["features"], plot_type="bar", max_display=st.session_state.nb_var_to_show)
+    # plt.close()
