@@ -31,17 +31,20 @@ def build_data_df(df_stats: pd.DataFrame):
     r = get_customer_info(st.session_state.customer_id)
     df = pd.DataFrame.from_dict(data=r, orient="index")
     df.columns=["Client"]
-    st.session_state.df_customer_data = (
-        pd.merge(df, df_stats, how="left", left_index=True, right_index=True)
-        .rename(columns={
-            "0":"Client",
-            "mean": "Moyenne des clients",
-            "std": "Dispersion",
-            "50%": "Médiane des clients",
-            "min": "Minimum",
-            "max": "Maximum",})
-        .drop(columns=["count", "25%", "75%"], index=["SK_ID_CURR", "TARGET"])
-    )
+    if not df.empty:
+        st.session_state.df_customer_data = (
+            pd.merge(df, df_stats, how="left", left_index=True, right_index=True)
+            .rename(columns={
+                "0":"Client",
+                "mean": "Moyenne des clients",
+                "std": "Dispersion",
+                "50%": "Médiane des clients",
+                "min": "Minimum",
+                "max": "Maximum",})
+            .drop(columns=["count", "25%", "75%"], index=["SK_ID_CURR", "TARGET"])
+        )
+    else:
+        st.session_state.df_customer_data = pd.DataFrame(data=None)
 
 
 @st.experimental_memo
@@ -56,7 +59,7 @@ def get_customer_info(customer_id: int):
     if r:
         return r.json()
     else:
-        return np.nan
+        return {}
     
 
 @st.experimental_memo
@@ -74,7 +77,7 @@ def get_customer_shap(customer_id: int):
     if r:
         return r.json()
     else:
-        return np.nan
+        return {}
 
 
 @st.experimental_memo
