@@ -86,8 +86,10 @@ def modelize(data: pd.DataFrame, estimator_str: str, steps: List[str] = ["cv", "
         click.echo(f"ROC AUC Test Score for {estimator_str}: {roc_auc_score(y_test, y_classes)}") 
         click.echo("Recording model in a pickle...")
         pickle.dump(best_estimator, open("model.pickle", "wb"))
+        pickle.dump(scaler, open("scaler.pickle", "wb"))
+        # df_X_train.to_csv("df_train.csv", index=False)
         trained_model = best_estimator
-        
+
 
     if "predict" in steps:
         if not "cv" in steps and model is not None:
@@ -119,7 +121,9 @@ def modelize(data: pd.DataFrame, estimator_str: str, steps: List[str] = ["cv", "
         df_shap["SK_ID_CURR"] = df_X_train.SK_ID_CURR.values
         click.echo(f"Recording SHAP values in a CSV...")
         df_shap.to_csv("df_shap.csv", index=False)
-
+        plt.figure(figsize=[25,10])
+        shap.summary_plot(df_shap.drop(columns=["SK_ID_CURR"]), df_X_train.drop(columns=["SK_ID_CURR"]), feature_names=features, plot_type="bar", max_display=10, show=False)
+        plt.savefig("global_summay_plot.jpg")
 
 
 def _interpret(data: pd.DataFrame, trained_model, n_samples: int = None):   
