@@ -1,8 +1,8 @@
-numpy==1.23.5
-numba
 shillelagh
 shillelagh[gsheetsapi]
 requests
 plotly
 shap
+numpy==1.23.5
+numba
 matplotlib
