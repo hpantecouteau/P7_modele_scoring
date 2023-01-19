@@ -53,19 +53,28 @@ def build_df_shap_customer(customer_id: int):
 @st.experimental_memo
 def get_customer_info(customer_id: int):
     r = requests.get(f'https://hpanteco.pythonanywhere.com/api/customers?id={customer_id}').json()
-    return r
+    if r:
+        return r.json()
+    else:
+        return np.nan
     
 
 @st.experimental_memo
 def get_customer_proba(customer_id: int):
     r = requests.get(f'https://hpanteco.pythonanywhere.com/api/customers/proba?id={customer_id}').json()
-    return r
+    if r:
+        return r.json()
+    else:
+        return np.nan
 
 
 @st.experimental_memo
 def get_customer_shap(customer_id: int):
     r = requests.get(f'https://hpanteco.pythonanywhere.com/api/customers/interpretability?id={customer_id}').json()
-    return r
+    if r:
+        return r.json()
+    else:
+        return np.nan
 
 
 @st.experimental_memo
@@ -86,14 +95,10 @@ def get_customers_data() -> Tuple[pd.Series, pd.DataFrame, pd.DataFrame]:
     sheet_url = st.secrets["public_gsheets_url_input"]
     query = f'SELECT * FROM "{sheet_url}"'
     response = cursor.execute(query)
-    st.write(cursor.description)
-    st.write(response.description)
     headers: List[str] = [item[0] for item in response.description]
     all_rows: List[Tuple] = response.fetchall()
     df = pd.DataFrame(all_rows, columns=headers)
-    st.dataframe(df)
     # df_customers = df_customers.drop(columns=[col for col in df_customers.columns if "HOUR" in col])
-    # customers_ids = df_customers.SK_ID_CURR
     customers_ids = df.get("SK_ID_CURR", np.arange(0,df.shape[0],1))
     stats = df.describe().T
     return customers_ids, stats, df
