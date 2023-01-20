@@ -82,7 +82,7 @@ def get_customer_shap(customer_id: int):
 
 @st.experimental_memo
 def decision_attribution(proba):
-    if isinstance(proba, float):
+    if isinstance(proba, float) and pd.notnull(proba):
         if proba >= st.session_state.r_params["seuil_classif"]:
             return "Accordé"
         else:
@@ -190,7 +190,7 @@ def draw_univariate_plot(data: pd.DataFrame, x_var: str, customer_id: int):
 
 @st.experimental_memo
 def show_filtered_dataframe(data: pd.DataFrame, additional_vars: List[str]):
-    minimal_vars_to_show= [_feature for _feature in data.index if "NAME" in _feature]
+    minimal_vars_to_show= data.index.values
     return data.loc[minimal_vars_to_show+additional_vars,:]
 
 
@@ -215,6 +215,7 @@ if not df_shap_customer.empty:
     col_left, col_right = st.columns(2)
     with col_left:
         proba = get_customer_proba(st.session_state.customer_id)
+        st.write(proba)
         if isinstance(proba, float):
             proba_to_show = round(proba*100,1)
         else:
@@ -225,11 +226,11 @@ if not df_shap_customer.empty:
             value = proba_to_show,
             mode = "gauge+number",
             title = {'text': "Probabilité de remboursement"},
-            gauge = {'axis': {'range': [None, 100]},
+            gauge = {'axis': {'range': [0, 100]},
                     'bar': {'color': "gray"},
                     'steps' : [
                         {'range': [0, st.session_state.r_params["seuil_classif"]*100], 'color': "coral"},
-                        {'range': [st.session_state.r_params["seuil_classif"]*100, 400], 'color': "lightgreen"}],
+                        {'range': [st.session_state.r_params["seuil_classif"]*100, 100], 'color': "lightgreen"}],
                     'threshold' : {'line': {'color': "red", 'width': 4}, 'thickness': 0.75, 'value': proba_to_show}})
         )
         st.plotly_chart(fig)          
@@ -243,7 +244,8 @@ if not df_shap_customer.empty:
 
 st.markdown("## Informations client et visualisations")
 if "df_customer_data" in st.session_state:
-    additional_var_to_show = st.multiselect("Information à afficher :", options=st.session_state.df_customer_data.index, key="var_to_show")        
+    additional_var_to_show = st.multiselect("Information à afficher :", options=st.session_state.df_customer_data.index, key="var_to_show")  
+    st.dataframe(st.session_state.df_customer_data.head(5))      
     st.dataframe(show_filtered_dataframe(st.session_state.df_customer_data, additional_var_to_show))
     numerical_vars = [var for var in df_customers.select_dtypes('number').columns if var != "SK_ID_CURR" and "FLAG" not in var]
     col_left, col_right = st.columns(2)
