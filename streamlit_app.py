@@ -190,7 +190,7 @@ def draw_univariate_plot(data: pd.DataFrame, x_var: str, customer_id: int):
 
 @st.experimental_memo
 def show_filtered_dataframe(data: pd.DataFrame, additional_vars: List[str]):
-    minimal_vars_to_show= data.index.values
+    minimal_vars_to_show= list(data.index.values)
     return data.loc[minimal_vars_to_show+additional_vars,:]
 
 
@@ -244,7 +244,7 @@ if not df_shap_customer.empty:
 
 st.markdown("## Informations client et visualisations")
 if "df_customer_data" in st.session_state:
-    additional_var_to_show = st.multiselect("Information à afficher :", options=st.session_state.df_customer_data.index, key="var_to_show")  
+    additional_var_to_show = st.multiselect("Information à afficher :", options=st.session_state.df_customer_data.index, key="var_to_show", default="AMT_CREDIT")  
     st.dataframe(st.session_state.df_customer_data.head(5))      
     st.dataframe(show_filtered_dataframe(st.session_state.df_customer_data, additional_var_to_show))
     numerical_vars = [var for var in df_customers.select_dtypes('number').columns if var != "SK_ID_CURR" and "FLAG" not in var]
@@ -269,7 +269,8 @@ st.markdown("## Critères prépondérants dans la modélisation générale")
 col_left, col_right = st.columns(2)
 with col_left:
     st.slider("Afficher les x critères plus importants :", min_value=1, max_value=20, value=10, step=1, key="nb_var_to_show")
-    st.image("https://drive.google.com/file/d/1kTTe-7f4Y8mxat8YPZS8lhLkXiEAPXsf/view?usp=sharing")
+    img = base64(Path("./global_summary_plot.jpg"))
+    st.write(f'<img src="{img}" />', unsafe_allow_html=True)
     # fig, ax = plt.subplots(1,1)
     # shap.summary_plot(df_shap.drop(columns=["SK_ID_CURR"]).values, df_train.values, feature_names=params["features"], plot_type="bar", max_display=st.session_state.nb_var_to_show)
     # plt.close()
