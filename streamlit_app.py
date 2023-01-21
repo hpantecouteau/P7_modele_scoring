@@ -269,7 +269,7 @@ st.markdown("## Critères prépondérants dans la modélisation générale")
 col_left, col_right = st.columns(2)
 with col_left:
     st.slider("Afficher les x critères plus importants :", min_value=1, max_value=20, value=10, step=1, key="nb_var_to_show")
-    img = base64(Path("./global_summary_plot.jpg"))
+    img = b64_image(Path("./global_summary_plot.jpg"))
     st.write(f'<img src="{img}" />', unsafe_allow_html=True)
     # fig, ax = plt.subplots(1,1)
     # shap.summary_plot(df_shap.drop(columns=["SK_ID_CURR"]).values, df_train.values, feature_names=params["features"], plot_type="bar", max_display=st.session_state.nb_var_to_show)
