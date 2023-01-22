@@ -127,6 +127,18 @@ def get_all_shap_values() -> Tuple[pd.Series, pd.DataFrame]:
     headers: List[str] = [item[0] for item in response.description]
     all_rows: List[Tuple] = response.fetchall()
     return pd.DataFrame(all_rows, columns=headers)
+
+
+@st.experimental_memo
+def get_default_proba_values():
+    connection = connect(":memory:", adapters=["gsheetsapi"])
+    cursor = connection.cursor()
+    sheet_url = st.secrets["public_gsheets_url_proba"]
+    query = f'SELECT * FROM "{sheet_url}"'
+    response = cursor.execute(query)
+    headers: List[str] = [item[0] for item in response.description]
+    all_rows: List[Tuple] = response.fetchall()
+    return pd.DataFrame(all_rows, columns=headers)
     
 
 @st.experimental_memo
@@ -198,6 +210,7 @@ with st.spinner("Chargement..."):
     st.session_state.r_params = requests.get(f'https://hpanteco.pythonanywhere.com/api/model/params').json()   
     customers_ids, stats, df_customers = get_customers_data()
     df_shap = get_all_shap_values()
+    df_probas = get_default_proba_values()
 
 st.title("Tableau de bord - Crédit")
 st.write("Ce tableau de bord permet d'afficher les informations relatives à une demande de crédit d'un client.")
@@ -213,11 +226,11 @@ if not df_shap_customer.empty:
     col_left, col_right = st.columns(2)
     with col_left:
         proba = get_customer_proba(st.session_state.customer_id)["P_OK"]
-        st.write(proba)
+        default_proba = df_probas.loc[df_probas.SK_ID_CURR == st.session_state.customer_id, "0"].values[0]
         if isinstance(proba, float):
             proba_to_show = round(proba*100,1)
         else:
-            proba_to_show = np.nan
+            proba_to_show = round(default_proba*100,1)
         st.metric("Décision conseillée pour l'attribution du prêt", decision_attribution(proba))
         fig = go.Figure(go.Indicator(
             domain = {'x': [0, 1], 'y': [0, 1]},
