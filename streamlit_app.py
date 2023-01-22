@@ -64,7 +64,7 @@ def get_customer_info(customer_id: int):
 
 @st.experimental_memo
 def get_customer_proba(customer_id: int):
-    r = requests.get(f'https://hpanteco.pythonanywhere.com/api/customers/proba?id={customer_id}')
+    r = requests.get(f'https://hpanteco.pythonanywhere.com/api/customers/proba?id={customer_id}', timeout=300)
     if r:
         return r.json()
     else:
