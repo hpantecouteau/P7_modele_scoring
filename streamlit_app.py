@@ -190,12 +190,13 @@ def draw_univariate_plot(data: pd.DataFrame, x_var: str, customer_id: int):
 
 @st.experimental_memo
 def show_filtered_dataframe(data: pd.DataFrame, additional_vars: List[str]):
-    minimal_vars_to_show= list(data.index.values)
+    minimal_vars_to_show= ["AMT_ANNUITY", "AMT_CREDIT", "AMT_INCOME_TOTAL", "EXT_SOURCE_2", "EXT_SOURCE_1"]
     return data.loc[minimal_vars_to_show+additional_vars,:]
 
 
 with st.spinner("Chargement..."):
     customers_ids, stats, df_customers = get_customers_data()
+    st.dataframe(stats)
     df_shap = get_all_shap_values()
     st.session_state.r_params = requests.get(f'https://hpanteco.pythonanywhere.com/api/model/params').json()
     # df_train = get_all_train_data()
@@ -268,9 +269,5 @@ if "df_customer_data" in st.session_state:
 st.markdown("## Critères prépondérants dans la modélisation générale")
 col_left, col_right = st.columns(2)
 with col_left:
-    st.slider("Afficher les x critères plus importants :", min_value=1, max_value=20, value=10, step=1, key="nb_var_to_show")
     img = b64_image(Path("./global_summary_plot.jpg"))
     st.write(f'<img src="{img}" />', unsafe_allow_html=True)
-    # fig, ax = plt.subplots(1,1)
-    # shap.summary_plot(df_shap.drop(columns=["SK_ID_CURR"]).values, df_train.values, feature_names=params["features"], plot_type="bar", max_display=st.session_state.nb_var_to_show)
-    # plt.close()
