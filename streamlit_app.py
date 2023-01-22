@@ -3,7 +3,6 @@ from pathlib import Path
 from typing import List, Tuple
 import plotly.graph_objects as go
 import matplotlib.pyplot as plt
-# import seaborn as sns
 import numpy as np
 import pandas as pd
 import requests
@@ -12,7 +11,6 @@ import streamlit as st
 from shillelagh.backends.apsw.db import connect
 
 
-# sns.set_theme()
 st.set_page_config(
     page_title="Tableau de bord - Crédit",
     layout="wide",
@@ -259,7 +257,6 @@ if not df_shap_customer.empty:
 st.markdown("## Informations client et visualisations")
 if "df_customer_data" in st.session_state:
     additional_var_to_show = st.multiselect("Information à afficher :", options=st.session_state.df_customer_data.index, key="var_to_show", default="AMT_CREDIT")  
-    st.dataframe(st.session_state.df_customer_data.head(5))      
     st.dataframe(show_filtered_dataframe(st.session_state.df_customer_data, additional_var_to_show))
     numerical_vars = [var for var in df_customers.select_dtypes('number').columns if var != "SK_ID_CURR" and "FLAG" not in var]
     col_left, col_right = st.columns(2)
