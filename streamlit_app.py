@@ -31,6 +31,8 @@ def build_data_df(df_stats: pd.DataFrame):
     r = get_customer_info(st.session_state.customer_id)
     df = pd.DataFrame.from_dict(data=r, orient="index")
     df.columns=["Client"]
+    st.dataframe(df)
+    st.write(df.dtypes)
     if not df.empty:
         st.session_state.df_customer_data = (
             pd.merge(df, df_stats, how="left", left_index=True, right_index=True)
@@ -190,7 +192,7 @@ def draw_univariate_plot(data: pd.DataFrame, x_var: str, customer_id: int):
 
 @st.experimental_memo
 def show_filtered_dataframe(data: pd.DataFrame, additional_vars: List[str]):
-    minimal_vars_to_show= ["AMT_ANNUITY", "AMT_CREDIT", "AMT_INCOME_TOTAL", "EXT_SOURCE_2", "EXT_SOURCE_1"]
+    minimal_vars_to_show= ["AMT_ANNUITY", "AMT_CREDIT", "AMT_INCOME_TOTAL", "EXT_SOURCE_2", "EXT_SOURCE_3"]
     return data.loc[minimal_vars_to_show+additional_vars,:]
 
 
