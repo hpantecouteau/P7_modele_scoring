@@ -226,7 +226,7 @@ if not df_shap_customer.empty:
     col_left, col_right = st.columns(2)
     with col_left:
         proba = get_customer_proba(st.session_state.customer_id)["P_OK"]
-        default_proba = df_probas.loc[df_probas.SK_ID_CURR == st.session_state.customer_id, "0"].values[0]
+        default_proba = float(df_probas.loc[df_probas.SK_ID_CURR == st.session_state.customer_id, "0"].values[0])
         if isinstance(proba, float):
             proba_to_show = round(proba*100,1)
         else:
