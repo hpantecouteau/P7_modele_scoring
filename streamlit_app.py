@@ -87,9 +87,9 @@ def get_customer_shap(customer_id: int):
 
 
 @st.experimental_memo
-def decision_attribution(proba):
-    if isinstance(proba, float) and pd.notnull(proba):
-        if proba >= st.session_state.r_params["seuil_classif"]:
+def decision_attribution(proba_perc):
+    if isinstance(proba_perc, float) and pd.notnull(proba_perc):
+        if proba_perc >= st.session_state.r_params["seuil_classif"]*100:
             return "Accordé"
         else:
             return "Refusé"
@@ -227,11 +227,11 @@ if not df_shap_customer.empty:
     with col_left:
         proba = get_customer_proba(st.session_state.customer_id)["P_OK"]
         default_proba = float(df_probas.loc[df_probas.SK_ID_CURR == st.session_state.customer_id, "0"].values[0])
-        if isinstance(proba, float):
+        if isinstance(proba, float) and pd.notnull(proba):
             proba_to_show = round(proba*100,1)
         else:
             proba_to_show = round(default_proba*100,1)
-        st.metric("Décision conseillée pour l'attribution du prêt", decision_attribution(proba))
+        st.metric("Décision conseillée pour l'attribution du prêt", decision_attribution(proba_to_show))
         fig = go.Figure(go.Indicator(
             domain = {'x': [0, 1], 'y': [0, 1]},
             value = proba_to_show,
