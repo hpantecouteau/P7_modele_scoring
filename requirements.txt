@@ -2,7 +2,7 @@ shillelagh
 shillelagh[gsheetsapi]
 requests
 plotly
-shap
+shap==0.41.0
 numpy==1.23.5
-numba
+numba==0.56.3
 matplotlib
