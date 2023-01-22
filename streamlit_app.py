@@ -31,8 +31,6 @@ def build_data_df(df_stats: pd.DataFrame):
     r = get_customer_info(st.session_state.customer_id)
     df = pd.DataFrame.from_dict(data=r, orient="index")
     df.columns=["Client"]
-    st.dataframe(df)
-    st.write(df.dtypes)
     if not df.empty:
         st.session_state.df_customer_data = (
             pd.merge(df, df_stats, how="left", left_index=True, right_index=True)
@@ -42,7 +40,10 @@ def build_data_df(df_stats: pd.DataFrame):
                 "std": "Dispersion",
                 "50%": "Médiane des clients",
                 "min": "Minimum",
-                "max": "Maximum",})
+                "max": "Maximum",
+                "freq": "Fréquence",
+                "top": "Plus fréquent",
+                "unique": "Nb de val. uniques"})
             .drop(columns=["count", "25%", "75%"], index=["SK_ID_CURR", "TARGET"])
         )
     else:
@@ -70,7 +71,10 @@ def get_customer_proba(customer_id: int):
     if r:
         return r.json()
     else:
-        return np.nan
+        return {
+                "P_OK": "nan",
+                "P_NOT_OK": "nan",
+            }
 
 
 @st.experimental_memo
@@ -103,9 +107,13 @@ def get_customers_data() -> Tuple[pd.Series, pd.DataFrame, pd.DataFrame]:
     headers: List[str] = [item[0] for item in response.description]
     all_rows: List[Tuple] = response.fetchall()
     df = pd.DataFrame(all_rows, columns=headers)
-    # df_customers = df_customers.drop(columns=[col for col in df_customers.columns if "HOUR" in col])
+    cat_cols = st.session_state.r_params["cat_cols"]
+    df = df.astype(float)
+    df.SK_ID_CURR = df.SK_ID_CURR.astype(int)
+    for _col in cat_cols:
+        df[_col] = df[_col].astype("category")
     customers_ids = df.get("SK_ID_CURR", np.arange(0,df.shape[0],1))
-    stats = df.describe().T
+    stats = df.describe(include="all").T
     return customers_ids, stats, df
 
 
@@ -120,16 +128,6 @@ def get_all_shap_values() -> Tuple[pd.Series, pd.DataFrame]:
     all_rows: List[Tuple] = response.fetchall()
     return pd.DataFrame(all_rows, columns=headers)
     
-
-# @st.experimental_memo
-# def get_all_train_data() -> pd.DataFrame:
-#     connection = connect(":memory:", adapters=["gsheetsapi"])
-#     cursor = connection.cursor()
-#     sheet_url = st.secrets["public_gsheets_url_train"]
-#     query = f'SELECT * FROM "{sheet_url}"'
-#     response = cursor.execute(query)
-#     all_rows: List[Tuple] = response.fetchall()
-#     return pd.DataFrame(all_rows)
 
 @st.experimental_memo
 def draw_bivariate_plot(data: pd.DataFrame, x_var: str, y_var: str, customer_id: int):
@@ -197,11 +195,9 @@ def show_filtered_dataframe(data: pd.DataFrame, additional_vars: List[str]):
 
 
 with st.spinner("Chargement..."):
+    st.session_state.r_params = requests.get(f'https://hpanteco.pythonanywhere.com/api/model/params').json()   
     customers_ids, stats, df_customers = get_customers_data()
-    st.dataframe(stats)
     df_shap = get_all_shap_values()
-    st.session_state.r_params = requests.get(f'https://hpanteco.pythonanywhere.com/api/model/params').json()
-    # df_train = get_all_train_data()
 
 st.title("Tableau de bord - Crédit")
 st.write("Ce tableau de bord permet d'afficher les informations relatives à une demande de crédit d'un client.")
@@ -211,13 +207,12 @@ with st.form("get_data", clear_on_submit=False):
 
 
 st.markdown(f"## Résultats et critères prépondérants dans la modélisation du client n°{st.session_state.customer_id}")
-params = requests.get(f'https://hpanteco.pythonanywhere.com/api/model/params').json()
 df_shap_customer = build_df_shap_customer(st.session_state.customer_id)
 if not df_shap_customer.empty:
-    explanation = shap.Explanation(values = df_shap_customer.drop(columns=["SK_ID_CURR"]).values[0], base_values=params["expected_value"], feature_names=params["features"])    
+    explanation = shap.Explanation(values = df_shap_customer.drop(columns=["SK_ID_CURR"]).values[0], base_values=st.session_state.r_params["expected_value"], feature_names=st.session_state.r_params["features"])    
     col_left, col_right = st.columns(2)
     with col_left:
-        proba = get_customer_proba(st.session_state.customer_id)
+        proba = get_customer_proba(st.session_state.customer_id)["P_OK"]
         st.write(proba)
         if isinstance(proba, float):
             proba_to_show = round(proba*100,1)
